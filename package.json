@@ -1,0 +1,22 @@
+{
+  "name": "xundian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "XunDian - Smart Field Retail Execution Platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "api:dev": "npm run dev -w packages/api",
+    "web:dev": "npm run dev -w apps/web",
+    "mobile:start": "npm run start -w apps/mobile",
+    "shared:build": "npm run build -w packages/shared",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

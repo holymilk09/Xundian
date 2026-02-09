@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PostGIS
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: xundian
+      POSTGRES_USER: xundian
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-xundian_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./packages/api/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xundian"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ (photo processing queue)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: xundian
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-xundian_dev}
+
+  # Backend API
+  api:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://xundian:${DB_PASSWORD:-xundian_dev}@db:5432/xundian
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://xundian:${RABBITMQ_PASSWORD:-xundian_dev}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      GAODE_API_KEY: ${GAODE_API_KEY}
+      OSS_ENDPOINT: ${OSS_ENDPOINT}
+      OSS_BUCKET: ${OSS_BUCKET}
+      OSS_ACCESS_KEY: ${OSS_ACCESS_KEY}
+      OSS_SECRET_KEY: ${OSS_SECRET_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    volumes:
+      - ./packages/api/src:/app/src
+
+  # Manager Web Dashboard
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      API_URL: http://api:3000
+    depends_on:
+      - api
+
+  # Inventory Prediction ML Service
+  ml:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://xundian:${DB_PASSWORD:-xundian_dev}@db:5432/xundian
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
