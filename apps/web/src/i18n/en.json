@@ -83,5 +83,15 @@
   "liveFieldMap": "Live Field Map",
   "companySetup": "Company Setup",
   "products": "Product Catalog",
-  "territories": "Territories"
+  "territories": "Territories",
+  "todayRoute": "Today's Route",
+  "startRoute": "Start Route",
+  "nearbyStores": "Nearby Stores",
+  "searchRadius": "Search Radius",
+  "optimizeRoute": "Optimize Route",
+  "revisitReminders": "Revisit Reminders",
+  "km": "km",
+  "min": "min",
+  "alerts": "Alerts",
+  "profile": "Profile"
 }

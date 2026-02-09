@@ -114,6 +114,42 @@ export default function LoginPage() {
               : t('managerLogin')}
           </button>
         </form>
+
+        {/* Dev bypass */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-6 pt-4 border-t border-white/[0.06]">
+            <p className="text-slate-500 text-[11px] text-center mb-3 uppercase tracking-wider">Dev Quick Login</p>
+            <div className="flex gap-2">
+              {[
+                { label: 'Admin', phone: '13800000001', role: 'admin' as const, name: 'Admin User' },
+                { label: 'Manager', phone: '13800000002', role: 'area_manager' as const, name: 'Zhang Wei' },
+                { label: 'Rep', phone: '13800000003', role: 'rep' as const, name: 'Li Na' },
+              ].map((dev) => (
+                <button
+                  type="button"
+                  key={dev.phone}
+                  onClick={() => {
+                    localStorage.setItem('xundian_access_token', 'dev-token');
+                    localStorage.setItem('xundian_refresh_token', 'dev-refresh');
+                    localStorage.setItem('xundian_user', JSON.stringify({
+                      id: dev.phone,
+                      name: dev.name,
+                      phone: dev.phone,
+                      role: dev.role,
+                      company_id: 'demo-company',
+                      company_name: 'Demo Corp',
+                    }));
+                    router.push('/dashboard');
+                  }}
+                  disabled={loading}
+                  className="flex-1 py-2 rounded-lg text-[12px] font-semibold border border-white/[0.1] bg-white/[0.03] text-slate-400 hover:bg-white/[0.08] hover:text-white transition-colors disabled:opacity-50"
+                >
+                  {dev.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

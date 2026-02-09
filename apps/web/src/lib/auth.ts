@@ -15,11 +15,12 @@ export function isAuthenticated(): boolean {
 }
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
-  const { data } = await api.post<LoginResponse>('/auth/login', credentials);
-  localStorage.setItem(TOKEN_KEY, data.access_token);
-  localStorage.setItem(REFRESH_KEY, data.refresh_token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.employee));
-  return data;
+  const response = await api.post('/auth/login', credentials);
+  const payload = response.data.data as LoginResponse;
+  localStorage.setItem(TOKEN_KEY, payload.access_token);
+  localStorage.setItem(REFRESH_KEY, payload.refresh_token);
+  localStorage.setItem(USER_KEY, JSON.stringify(payload.employee));
+  return payload;
 }
 
 export function logout(): void {

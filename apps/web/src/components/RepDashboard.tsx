@@ -1,0 +1,194 @@
+'use client';
+
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+type StockStatus = 'inStock' | 'lowStock' | 'outOfStock' | 'addedProduct';
+type StoreTier = 'A' | 'B' | 'C';
+type StoreType = 'supermarket' | 'convenience' | 'smallShop';
+
+interface MockStore {
+  id: number;
+  name: { en: string; zh: string };
+  type: StoreType;
+  tier: StoreTier;
+  status: StockStatus;
+  lastVisit: number | null;
+}
+
+const statusColors: Record<StockStatus, string> = {
+  inStock: '#10B981',
+  lowStock: '#F59E0B',
+  outOfStock: '#EF4444',
+  addedProduct: '#8B5CF6',
+};
+
+const tierColors: Record<StoreTier, string> = {
+  A: '#DC2626',
+  B: '#F59E0B',
+  C: '#6B7280',
+};
+
+const storeTypeIcons: Record<StoreType, string> = {
+  supermarket: '🏬',
+  convenience: '🏪',
+  smallShop: '🏠',
+};
+
+const mockStores: MockStore[] = [
+  { id: 1, name: { en: 'Carrefour Pudong', zh: '家乐福浦东店' }, type: 'supermarket', tier: 'A', status: 'lowStock', lastVisit: 2 },
+  { id: 2, name: { en: 'FamilyMart #2847', zh: '全家便利2847' }, type: 'convenience', tier: 'B', status: 'inStock', lastVisit: 5 },
+  { id: 3, name: { en: 'Uncle Wang Store', zh: '老王小卖部' }, type: 'smallShop', tier: 'C', status: 'outOfStock', lastVisit: 12 },
+  { id: 4, name: { en: 'RT-Mart Century', zh: '大润发世纪店' }, type: 'supermarket', tier: 'A', status: 'inStock', lastVisit: 1 },
+  { id: 5, name: { en: 'Lawson Lujiazui', zh: '罗森陆家嘴' }, type: 'convenience', tier: 'B', status: 'addedProduct', lastVisit: null },
+];
+
+export default function RepDashboard() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language as 'en' | 'zh';
+  const [searchRadius, setSearchRadius] = useState(2);
+
+  const stats = [
+    { label: t('visited'), value: '8', color: '#10B981' },
+    { label: t('pending'), value: '6', color: '#3B82F6' },
+    { label: t('overdue'), value: '2', color: '#EF4444' },
+    { label: t('discovered'), value: '1', color: '#8B5CF6' },
+  ];
+
+  return (
+    <div className="max-w-3xl">
+      <h1 className="text-2xl font-bold text-white mb-6">{t('dashboard')}</h1>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="rounded-xl text-center py-4 px-2"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid ${s.color}22`,
+            }}
+          >
+            <div className="text-2xl font-bold" style={{ color: s.color }}>
+              {s.value}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Today's Route Card */}
+      <div
+        className="rounded-2xl p-5 mb-6"
+        style={{
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(16,185,129,0.08))',
+          border: '1px solid rgba(59,130,246,0.15)',
+        }}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-white text-base font-bold">{t('todayRoute')}</span>
+          <span className="text-blue-400 text-sm">
+            14 {t('stores')} · 12.4 {t('km')}
+          </span>
+        </div>
+        <button
+          className="w-full py-3.5 rounded-xl text-white text-[15px] font-semibold border-0"
+          style={{
+            background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
+            boxShadow: '0 4px 16px rgba(59,130,246,0.3)',
+          }}
+        >
+          {t('startRoute')}
+        </button>
+        <div className="flex justify-center gap-5 mt-3">
+          <span className="text-slate-500 text-xs">~3.5h</span>
+          <span className="text-slate-500 text-xs">
+            {lang === 'en' ? 'Pudong A' : '浦东A区'}
+          </span>
+          <span className="text-slate-500 text-xs cursor-pointer hover:text-blue-400 transition-colors">
+            {t('optimizeRoute')}
+          </span>
+        </div>
+      </div>
+
+      {/* Nearby Stores */}
+      <div className="glass-card p-4 mb-6">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-white text-sm font-semibold">{t('nearbyStores')}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 text-xs">{t('searchRadius')}:</span>
+            {[1, 2, 5].map((r) => (
+              <button
+                key={r}
+                onClick={() => setSearchRadius(r)}
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+                  searchRadius === r
+                    ? 'bg-primary text-white'
+                    : 'bg-white/5 text-slate-500 border border-white/[0.08] hover:bg-white/10'
+                }`}
+              >
+                {r}{t('km')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-slate-400 text-xs">
+          {lang === 'en'
+            ? `Found 23 unvisited stores within ${searchRadius}km`
+            : `${searchRadius}公里内发现23家未巡检门店`}
+        </p>
+      </div>
+
+      {/* Revisit Reminders */}
+      <h2 className="section-label mb-3">{t('revisitReminders')}</h2>
+
+      {/* Store List */}
+      <div className="space-y-2">
+        {mockStores.map((store) => (
+          <div
+            key={store.id}
+            className="glass-card p-4 flex items-center gap-3 cursor-pointer hover:bg-white/[0.06] transition-colors"
+          >
+            {/* Store type icon */}
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-lg shrink-0"
+              style={{ background: `${statusColors[store.status]}15` }}
+            >
+              {storeTypeIcons[store.type]}
+            </div>
+
+            {/* Store info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center">
+                <span className="text-white text-sm font-semibold truncate">
+                  {store.name[lang]}
+                </span>
+                <span
+                  className="text-[11px] font-bold px-2 py-0.5 rounded-[5px] shrink-0 ml-2"
+                  style={{
+                    background: `${tierColors[store.tier]}22`,
+                    color: tierColors[store.tier],
+                  }}
+                >
+                  {store.tier}
+                </span>
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs font-medium" style={{ color: statusColors[store.status] }}>
+                  {t(store.status)}
+                </span>
+                <span className="text-[11px] text-slate-600">
+                  {store.lastVisit !== null ? `${store.lastVisit} ${t('daysAgo')}` : '—'}
+                </span>
+              </div>
+            </div>
+
+            {/* Chevron */}
+            <div className="text-slate-700 text-lg shrink-0">›</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
