@@ -8,7 +8,7 @@ declare module 'fastify' {
 }
 
 async function tenantPluginImpl(app: FastifyInstance) {
-  app.decorateRequest('companyId', null);
+  app.decorateRequest('companyId', null as string | null);
 
   app.addHook('onRequest', async (request: FastifyRequest) => {
     if (request.employee) {

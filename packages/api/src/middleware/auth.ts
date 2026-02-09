@@ -2,13 +2,15 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import type { EmployeeRole } from '@xundian/shared';
 
+export interface RequestEmployee {
+  id: string;
+  company_id: string;
+  role: EmployeeRole;
+}
+
 declare module 'fastify' {
   interface FastifyRequest {
-    employee: {
-      id: string;
-      company_id: string;
-      role: EmployeeRole;
-    };
+    employee: RequestEmployee;
   }
 }
 
@@ -19,7 +21,7 @@ function shouldSkipAuth(url: string): boolean {
 }
 
 async function authPluginImpl(app: FastifyInstance) {
-  app.decorateRequest('employee', null);
+  app.decorateRequest('employee', null as unknown as RequestEmployee);
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     if (shouldSkipAuth(request.url)) {

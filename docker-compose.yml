@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: xundian
       POSTGRES_PASSWORD: ${DB_PASSWORD:-xundian_dev}
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./packages/api/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -23,7 +23,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6381:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
