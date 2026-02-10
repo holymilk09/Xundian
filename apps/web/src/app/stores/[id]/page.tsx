@@ -39,6 +39,12 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
         <div className="flex items-center gap-3 mb-2">
           <TierBadge tier={store.tier as StoreTier} />
           <span className="badge-pill text-success bg-success/15">{t(storeStatus)}</span>
+          {store.approval_status === 'pending' && (
+            <span className="badge-pill text-[#8B5CF6] bg-[#8B5CF6]/15">{t('pendingApproval')}</span>
+          )}
+          {store.approval_status === 'rejected' && (
+            <span className="badge-pill text-danger bg-danger/15">{t('rejected')}</span>
+          )}
         </div>
         <h1 className="text-2xl font-bold text-white">
           {lang === 'zh' ? store.name_zh : store.name}
@@ -46,6 +52,11 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
         <p className="text-muted text-sm mt-1">
           {t(store.store_type)} &middot; ID #{store.id.substring(0, 8)}
         </p>
+        {store.discovered_at && store.discoverer_name && (
+          <p className="text-muted text-xs mt-1">
+            {t('discoveredBy')}: {store.discoverer_name} &middot; {t('discoveredAt')}: {new Date(store.discovered_at).toLocaleDateString()}
+          </p>
+        )}
       </div>
 
       {/* Quick Stats */}

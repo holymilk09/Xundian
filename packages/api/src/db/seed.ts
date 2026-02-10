@@ -54,65 +54,110 @@ async function seed() {
       console.log(`  Employee created: ${emp.name} (${emp.role})`);
     }
 
-    // 3. Create stores (Shanghai area)
+    // Phase 2 tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS daily_routes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        employee_id UUID NOT NULL REFERENCES employees(id),
+        date DATE NOT NULL,
+        waypoints JSONB NOT NULL DEFAULT '[]',
+        total_distance_km DECIMAL(8, 2) NOT NULL DEFAULT 0,
+        estimated_duration_minutes INTEGER NOT NULL DEFAULT 0,
+        optimized BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(employee_id, date)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        employee_id UUID NOT NULL REFERENCES employees(id),
+        type TEXT NOT NULL CHECK (type IN ('revisit_reminder', 'oos_alert', 'route_ready', 'system', 'store_discovered')),
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        store_id UUID REFERENCES stores(id),
+        schedule_id UUID REFERENCES revisit_schedule(id),
+        read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log('  Phase 2 tables created (daily_routes, notifications)');
+
+    // Sprint 1 migration: add store onboarding columns
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS discovered_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS storefront_photo_url TEXT`);
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'approved'`);
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES employees(id)`);
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS notes TEXT`);
+    // Also update notifications CHECK constraint to include store_discovered
+    await client.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check`);
+    await client.query(`ALTER TABLE notifications ADD CONSTRAINT notifications_type_check CHECK (type IN ('revisit_reminder', 'oos_alert', 'route_ready', 'system', 'store_discovered'))`);
+    console.log('  Sprint 1 migration: store onboarding columns added');
+
+    // 3. Create stores (Chengdu area — 6 districts)
     const stores = [
       {
         id: '00000000-0000-0000-0000-000000000201',
-        name: 'Family Mart Nanjing Rd',
-        name_zh: '全家南京路店',
-        lat: 31.2304,
-        lng: 121.4737,
-        address: '123 Nanjing East Road, Huangpu District',
+        name: 'Hongqi Supermarket Chunxi',
+        name_zh: '红旗超市春熙路店',
+        lat: 30.5728,
+        lng: 104.0668,
+        address: '锦江区春熙路128号',
         tier: 'A',
-        store_type: 'convenience',
+        store_type: 'supermarket',
       },
       {
         id: '00000000-0000-0000-0000-000000000202',
-        name: 'Lawson Xujiahui',
-        name_zh: '罗森徐家汇店',
-        lat: 31.1956,
-        lng: 121.4375,
-        address: '456 Zhaojiabang Road, Xuhui District',
+        name: 'Wudongfeng Convenience Wuhou',
+        name_zh: '舞东风便利武侯店',
+        lat: 30.5535,
+        lng: 104.0520,
+        address: '武侯区武侯祠大街66号',
         tier: 'B',
         store_type: 'convenience',
       },
       {
         id: '00000000-0000-0000-0000-000000000203',
-        name: 'RT-Mart Pudong',
-        name_zh: '大润发浦东店',
-        lat: 31.2353,
-        lng: 121.5440,
-        address: '789 Century Avenue, Pudong New District',
-        tier: 'A',
-        store_type: 'supermarket',
+        name: 'WOWO Convenience Qingyang',
+        name_zh: 'WOWO便利青羊店',
+        lat: 30.5732,
+        lng: 104.0385,
+        address: '青羊区金沙遗址路45号',
+        tier: 'B',
+        store_type: 'convenience',
       },
       {
         id: '00000000-0000-0000-0000-000000000204',
-        name: 'Uncle Wang\'s Shop',
-        name_zh: '王叔小卖部',
-        lat: 31.2100,
-        lng: 121.4580,
-        address: '12 Huaihai Middle Road Lane 88',
+        name: 'Zhang Ma Small Shop',
+        name_zh: '张妈小卖部',
+        lat: 30.5610,
+        lng: 104.0430,
+        address: '金牛区抚琴西路12号',
         tier: 'C',
         store_type: 'small_shop',
       },
       {
         id: '00000000-0000-0000-0000-000000000205',
-        name: 'Carrefour Jinqiao',
-        name_zh: '家乐福金桥店',
-        lat: 31.2450,
-        lng: 121.5680,
-        address: '1000 Jinqiao Road, Pudong New District',
+        name: 'Huhui Supermarket Gaoxin',
+        name_zh: '互惠超市高新店',
+        lat: 30.5460,
+        lng: 104.0650,
+        address: '高新区天府三街199号',
         tier: 'A',
         store_type: 'supermarket',
       },
       {
         id: '00000000-0000-0000-0000-000000000206',
-        name: 'Mini Stop Hongkou',
-        name_zh: '美你停虹口店',
-        lat: 31.2600,
-        lng: 121.4900,
-        address: '55 Sichuan North Road, Hongkou District',
+        name: 'Hongqi Express Chenghua',
+        name_zh: '红旗快便利成华店',
+        lat: 30.5850,
+        lng: 104.0830,
+        address: '成华区建设路68号',
         tier: 'B',
         store_type: 'convenience',
       },
@@ -120,12 +165,52 @@ async function seed() {
 
     for (const store of stores) {
       await client.query(
-        `INSERT INTO stores (id, company_id, name, name_zh, location, address, tier, store_type, discovered_by)
-         VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($6, $5), 4326), $7, $8, $9, $10)
+        `INSERT INTO stores (id, company_id, name, name_zh, location, address, tier, store_type, discovered_by, discovered_at, approval_status, approved_at)
+         VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($6, $5), 4326), $7, $8, $9, $10, NOW(), 'approved', NOW())
          ON CONFLICT (id) DO NOTHING`,
         [store.id, companyId, store.name, store.name_zh, store.lat, store.lng, store.address, store.tier, store.store_type, employees[2]!.id],
       );
       console.log(`  Store created: ${store.name}`);
+    }
+
+    // 3b. Create 2 pending stores for approval demo
+    const pendingStores = [
+      {
+        id: '00000000-0000-0000-0000-000000000207',
+        name: 'Liu Ji Grocery',
+        name_zh: '刘记杂货铺',
+        lat: 30.5680,
+        lng: 104.0550,
+        address: '锦江区东大街15号',
+        tier: 'C',
+        store_type: 'small_shop',
+        discovered_by: employees[2]!.id,
+        storefront_photo_url: 'https://oss.example.com/storefronts/liuji-grocery.jpg',
+        notes: '街角杂货铺，老板说以前用过我们的酱油',
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000208',
+        name: 'Tianfu Mini Mart',
+        name_zh: '天府小超市',
+        lat: 30.5520,
+        lng: 104.0710,
+        address: '高新区天府大道南段88号',
+        tier: 'B',
+        store_type: 'convenience',
+        discovered_by: employees[3]!.id,
+        storefront_photo_url: 'https://oss.example.com/storefronts/tianfu-minimart.jpg',
+        notes: '新开业的便利店，附近小区住户多',
+      },
+    ];
+
+    for (const store of pendingStores) {
+      await client.query(
+        `INSERT INTO stores (id, company_id, name, name_zh, location, address, tier, store_type, discovered_by, discovered_at, approval_status, storefront_photo_url, notes)
+         VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($6, $5), 4326), $7, $8, $9, $10, NOW(), 'pending', $11, $12)
+         ON CONFLICT (id) DO NOTHING`,
+        [store.id, companyId, store.name, store.name_zh, store.lat, store.lng, store.address, store.tier, store.store_type, store.discovered_by, store.storefront_photo_url, store.notes],
+      );
+      console.log(`  Pending store created: ${store.name}`);
     }
 
     // 4. Create sample visits
@@ -140,7 +225,7 @@ async function seed() {
         gps_lng: stores[0]!.lng,
         gps_accuracy_m: 8.5,
         stock_status: 'in_stock',
-        notes: 'Shelves well stocked. New promo display set up.',
+        notes: '货架整齐，豆瓣酱促销展架已搭建。',
         duration_minutes: 25,
       },
       {
@@ -152,7 +237,7 @@ async function seed() {
         gps_lng: stores[1]!.lng,
         gps_accuracy_m: 12.0,
         stock_status: 'low_stock',
-        notes: 'Running low on SKU-001. Restock needed this week.',
+        notes: '花椒油库存偏低，本周需补货。',
         duration_minutes: 15,
       },
       {
@@ -164,7 +249,7 @@ async function seed() {
         gps_lng: stores[3]!.lng,
         gps_accuracy_m: 5.2,
         stock_status: 'out_of_stock',
-        notes: 'Completely out. Owner says supplier delayed.',
+        notes: '完全缺货，老板说供应商延迟了。',
         duration_minutes: 10,
       },
     ];
@@ -213,12 +298,14 @@ async function seed() {
     }
     console.log(`  Created ${schedules.length} revisit schedules`);
 
-    // 6. Create sample products
+    // 6. Create sample products (Sichuan condiments)
     const products = [
-      { name: 'Green Tea 500ml', name_zh: '绿茶500毫升', sku: 'SKU-001', category: 'beverages' },
-      { name: 'Cola 330ml', name_zh: '可乐330毫升', sku: 'SKU-002', category: 'beverages' },
-      { name: 'Instant Noodles Beef', name_zh: '红烧牛肉面', sku: 'SKU-003', category: 'food' },
-      { name: 'Potato Chips Original', name_zh: '原味薯片', sku: 'SKU-004', category: 'snacks' },
+      { name: 'Doubanjiang 500g', name_zh: '豆瓣酱500克', sku: 'SKU-001', category: 'condiments' },
+      { name: 'Sichuan Pepper Oil 250ml', name_zh: '花椒油250毫升', sku: 'SKU-002', category: 'condiments' },
+      { name: 'Hotpot Base Spicy 200g', name_zh: '火锅底料麻辣200克', sku: 'SKU-003', category: 'condiments' },
+      { name: 'Pickled Peppers 280g', name_zh: '泡椒280克', sku: 'SKU-004', category: 'condiments' },
+      { name: 'Soy Sauce Premium 500ml', name_zh: '特级酱油500毫升', sku: 'SKU-005', category: 'condiments' },
+      { name: 'Oyster Sauce 350ml', name_zh: '蚝油350毫升', sku: 'SKU-006', category: 'condiments' },
     ];
 
     for (const product of products) {
@@ -230,7 +317,7 @@ async function seed() {
     }
     console.log(`  Created ${products.length} products`);
 
-    // 7. Phase 3: Create visit_photos with AI analysis
+    // 7. Phase 3: Create visit_photos with AI analysis (Sichuan condiments)
     const visitPhotos = [
       {
         visit_id: visits[0]!.id,
@@ -238,14 +325,14 @@ async function seed() {
         photo_type: 'shelf',
         ai_analysis: {
           our_products: [
-            { name: 'Green Tea 500ml', facing_count: 6, stock_level: 'high', shelf_position: 'eye' },
-            { name: 'Cola 330ml', facing_count: 4, stock_level: 'medium', shelf_position: 'middle' },
+            { name: 'Doubanjiang 500g', facing_count: 6, stock_level: 'high', shelf_position: 'eye' },
+            { name: 'Soy Sauce Premium 500ml', facing_count: 4, stock_level: 'medium', shelf_position: 'middle' },
           ],
           total_category_facings: 30,
           share_of_shelf_percent: 33,
           competitors: [
-            { name: 'Pepsi', facing_count: 8 },
-            { name: 'Wahaha', facing_count: 5 },
+            { name: '李锦记', facing_count: 8 },
+            { name: '海天', facing_count: 5 },
           ],
           anomalies: [],
           confidence: 0.92,
@@ -258,15 +345,15 @@ async function seed() {
         photo_type: 'shelf',
         ai_analysis: {
           our_products: [
-            { name: 'Green Tea 500ml', facing_count: 2, stock_level: 'low', shelf_position: 'bottom' },
-            { name: 'Instant Noodles Beef', facing_count: 3, stock_level: 'medium', shelf_position: 'middle' },
+            { name: 'Sichuan Pepper Oil 250ml', facing_count: 2, stock_level: 'low', shelf_position: 'bottom' },
+            { name: 'Hotpot Base Spicy 200g', facing_count: 3, stock_level: 'medium', shelf_position: 'middle' },
           ],
           total_category_facings: 25,
           share_of_shelf_percent: 20,
           competitors: [
-            { name: 'Master Kong', facing_count: 10 },
+            { name: '厨邦', facing_count: 10 },
           ],
-          anomalies: ['Green Tea nearly out of stock'],
+          anomalies: ['花椒油库存即将售罄'],
           confidence: 0.87,
         },
         ai_processed_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
@@ -277,16 +364,16 @@ async function seed() {
         photo_type: 'shelf',
         ai_analysis: {
           our_products: [
-            { name: 'Potato Chips Original', facing_count: 0, stock_level: 'empty', shelf_position: 'eye' },
-            { name: 'Cola 330ml', facing_count: 1, stock_level: 'low', shelf_position: 'bottom' },
+            { name: 'Pickled Peppers 280g', facing_count: 0, stock_level: 'empty', shelf_position: 'eye' },
+            { name: 'Oyster Sauce 350ml', facing_count: 1, stock_level: 'low', shelf_position: 'bottom' },
           ],
           total_category_facings: 18,
           share_of_shelf_percent: 6,
           competitors: [
-            { name: 'Lay\'s', facing_count: 7 },
-            { name: 'Pepsi', facing_count: 4 },
+            { name: '李锦记', facing_count: 7 },
+            { name: '海天', facing_count: 4 },
           ],
-          anomalies: ['Potato Chips completely out of stock', 'Cola nearly depleted'],
+          anomalies: ['泡椒完全缺货', '蚝油即将售罄'],
           confidence: 0.85,
         },
         ai_processed_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -304,7 +391,7 @@ async function seed() {
 
     // 7b. Phase 3: Create inventory predictions
     const productRows = await client.query(
-      `SELECT id, name FROM products WHERE company_id = $1 LIMIT 4`,
+      `SELECT id, name FROM products WHERE company_id = $1 LIMIT 6`,
       [companyId],
     );
     const productIds = productRows.rows;
@@ -347,11 +434,10 @@ async function seed() {
       console.log(`  Created ${inventoryPredictions.length} inventory predictions`);
     }
 
-    // 8. Phase 2: Create additional visits for visit-trends chart (spread over 14 days)
+    // 8. Create additional visits for visit-trends chart (spread over 14 days)
     const additionalVisits = [];
     for (let daysAgo = 4; daysAgo <= 14; daysAgo++) {
       const visitDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
-      // 1-3 visits per day spread across reps and stores
       const visitsPerDay = (daysAgo % 3) + 1;
       for (let v = 0; v < visitsPerDay; v++) {
         const storeIdx = (daysAgo + v) % stores.length;
@@ -364,7 +450,7 @@ async function seed() {
           gps_lng: stores[storeIdx]!.lng,
           gps_accuracy_m: 5 + Math.random() * 15,
           stock_status: ['in_stock', 'in_stock', 'low_stock', 'in_stock'][v % 4]!,
-          notes: `Routine check day -${daysAgo}`,
+          notes: `日常巡检 day -${daysAgo}`,
           duration_minutes: 10 + Math.floor(Math.random() * 25),
         });
       }
@@ -379,73 +465,40 @@ async function seed() {
     }
     console.log(`  Created ${additionalVisits.length} additional visits for trends data`);
 
-    // 8. Phase 2: Create daily_routes table data and run migration
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS daily_routes (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        company_id UUID NOT NULL REFERENCES companies(id),
-        employee_id UUID NOT NULL REFERENCES employees(id),
-        date DATE NOT NULL,
-        waypoints JSONB NOT NULL DEFAULT '[]',
-        total_distance_km DECIMAL(8, 2) NOT NULL DEFAULT 0,
-        estimated_duration_minutes INTEGER NOT NULL DEFAULT 0,
-        optimized BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(employee_id, date)
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        company_id UUID NOT NULL REFERENCES companies(id),
-        employee_id UUID NOT NULL REFERENCES employees(id),
-        type TEXT NOT NULL CHECK (type IN ('revisit_reminder', 'oos_alert', 'route_ready', 'system')),
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        store_id UUID REFERENCES stores(id),
-        schedule_id UUID REFERENCES revisit_schedule(id),
-        read BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-    console.log('  Phase 2 tables created (daily_routes, notifications)');
-
-    // 9. Create sample notifications
+    // 9. Create sample notifications (Chengdu store names)
     const sampleNotifications = [
       {
         employee_id: employees[2]!.id,
         type: 'revisit_reminder',
-        title: 'Revisit Reminder: Lawson Xujiahui',
-        message: 'You have a high priority revisit scheduled for tomorrow at Lawson Xujiahui (Tier B). Reason: oos_detected.',
+        title: '复访提醒: 舞东风便利武侯店',
+        message: '您有一个高优先级复访计划：明日巡检舞东风便利武侯店 (B级)。原因：缺货预警。',
         store_id: stores[1]!.id,
       },
       {
         employee_id: employees[2]!.id,
         type: 'oos_alert',
-        title: 'OOS Alert: Uncle Wang\'s Shop',
-        message: 'Out-of-stock detected at Uncle Wang\'s Shop. A revisit has been scheduled.',
+        title: '缺货预警: 张妈小卖部',
+        message: '张妈小卖部检测到缺货，已安排复访。',
         store_id: stores[3]!.id,
       },
       {
         employee_id: employees[2]!.id,
         type: 'route_ready',
-        title: 'Route Optimized',
-        message: 'Your optimized route for today is ready. 6 stores, estimated 3.5 hours.',
+        title: '路线已优化',
+        message: '今日优化路线已就绪。6家门店，预计3.5小时。',
       },
       {
         employee_id: employees[3]!.id,
         type: 'revisit_reminder',
-        title: 'Revisit Reminder: Uncle Wang\'s Shop',
-        message: 'You have a high priority revisit scheduled for tomorrow at Uncle Wang\'s Shop (Tier C). Reason: oos_detected.',
+        title: '复访提醒: 张妈小卖部',
+        message: '您有一个高优先级复访计划：明日巡检张妈小卖部 (C级)。原因：缺货预警。',
         store_id: stores[3]!.id,
       },
       {
         employee_id: employees[2]!.id,
         type: 'system',
-        title: 'Welcome to XunDian',
-        message: 'Your account has been set up. Start by generating your first route!',
+        title: '欢迎使用巡店',
+        message: '您的账号已创建成功。开始生成您的第一条巡检路线吧！',
       },
     ];
 

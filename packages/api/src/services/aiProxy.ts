@@ -3,7 +3,7 @@ import { createNotification } from '../services/notifications.js';
 import { scheduleNextRevisit } from '../services/scheduler.js';
 import type { AIShelfAnalysis, StockLevel, ShelfPosition, StockStatus } from '@xundian/shared';
 
-const COMPETITOR_NAMES = ['Mengniu', 'Wahaha', 'Nongfu Spring', 'Yili', 'Master Kong', 'Tingyi'];
+const COMPETITOR_NAMES = ['李锦记', '海天', '厨邦', '老干妈', '千禾', '恒顺'];
 
 const STOCK_LEVELS: StockLevel[] = ['high', 'medium', 'low', 'empty'];
 const SHELF_POSITIONS: ShelfPosition[] = ['eye', 'middle', 'bottom', 'top'];

@@ -1,4 +1,4 @@
-export type NotificationType = 'revisit_reminder' | 'oos_alert' | 'route_ready' | 'system';
+export type NotificationType = 'revisit_reminder' | 'oos_alert' | 'route_ready' | 'system' | 'store_discovered';
 
 export interface Notification {
   id: string;

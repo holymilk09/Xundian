@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import StoreTable from '@/components/StoreTable';
 import { useApi } from '@/lib/hooks';
+import { getUser } from '@/lib/auth';
 import type { StoreTier, StoreType } from '@xundian/shared';
 
 function formatLastVisit(dateStr: string | null): string | null {
@@ -15,6 +17,8 @@ function formatLastVisit(dateStr: string | null): string | null {
 
 export default function StoresPage() {
   const { t } = useTranslation();
+  const user = getUser();
+  const isManager = user?.role !== 'rep';
   const { data, loading, error } = useApi<any[]>('/stores?limit=100');
 
   const stores = (data || []).map((item: any) => ({
@@ -30,7 +34,25 @@ export default function StoresPage() {
 
   return (
     <div className="max-w-6xl">
-      <h1 className="text-2xl font-bold text-white mb-6">{t('stores')}</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">{t('stores')}</h1>
+        <div className="flex gap-3">
+          <Link
+            href="/stores/discover"
+            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            + {t('addStore')}
+          </Link>
+          {isManager && (
+            <Link
+              href="/stores/pending"
+              className="px-4 py-2 rounded-lg border border-warning/30 text-warning text-sm font-medium hover:bg-warning/10 transition-colors"
+            >
+              {t('pendingApprovals')}
+            </Link>
+          )}
+        </div>
+      </div>
       {loading && <p className="text-slate-400">Loading...</p>}
       {error && <p className="text-danger">{error}</p>}
       {!loading && !error && <StoreTable stores={stores} />}

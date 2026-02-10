@@ -96,7 +96,7 @@ async function discoverViaGaode(
 }
 
 function discoverMock(lat: number, lng: number): DiscoveredStore[] {
-  // Generate 5 mock stores near the given coordinates with realistic Shanghai names
+  // Generate 5 mock stores near the given coordinates with realistic Chengdu names
   const mockStores: Array<{
     name: string;
     name_zh: string;
@@ -105,39 +105,39 @@ function discoverMock(lat: number, lng: number): DiscoveredStore[] {
     address: string;
   }> = [
     {
-      name: 'FamilyMart Nanjing Road',
-      name_zh: '全家便利南京路店',
+      name: 'Hongqi Supermarket Branch',
+      name_zh: '红旗超市分店',
       latOffset: 0.002,
       lngOffset: 0.001,
-      address: '南京东路123号',
+      address: '锦江区大慈寺路123号',
     },
     {
-      name: 'Lianhua Supermarket',
-      name_zh: '联华超市淮海路店',
+      name: 'Wudongfeng Convenience',
+      name_zh: '舞东风便利店',
       latOffset: -0.001,
       lngOffset: 0.003,
-      address: '淮海中路456号',
+      address: '武侯区科华北路456号',
     },
     {
-      name: 'Lawson Lujiazui',
-      name_zh: '罗森陆家嘴店',
+      name: 'WOWO Convenience',
+      name_zh: 'WOWO便利店',
       latOffset: 0.003,
       lngOffset: -0.002,
-      address: '银城中路789号',
+      address: '青羊区宽窄巷子旁789号',
     },
     {
-      name: 'Hualian Mini Market',
-      name_zh: '华联小超市长宁店',
+      name: 'Zhang Ma Small Shop',
+      name_zh: '张妈小卖部',
       latOffset: -0.002,
       lngOffset: -0.001,
-      address: '长宁路321号',
+      address: '金牛区茶店子路321号',
     },
     {
-      name: 'Alldays Convenience',
-      name_zh: '好德便利徐汇店',
+      name: 'Huhui Supermarket',
+      name_zh: '互惠超市',
       latOffset: 0.001,
       lngOffset: 0.002,
-      address: '衡山路654号',
+      address: '高新区剑南大道654号',
     },
   ];
 

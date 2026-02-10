@@ -6,6 +6,7 @@ export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'added_pro
 export type PhotoType = 'shelf' | 'storefront' | 'other';
 export type RevisitPriority = 'high' | 'normal' | 'low';
 export type RevisitReason = 'scheduled' | 'oos_detected' | 'low_stock' | 'new_product';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Store {
   id: string;
@@ -21,6 +22,12 @@ export interface Store {
   contact_phone?: string;
   gaode_poi_id?: string;
   discovered_by?: string;
+  discovered_at?: string;
+  storefront_photo_url?: string;
+  approval_status?: ApprovalStatus;
+  approved_by?: string;
+  approved_at?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
