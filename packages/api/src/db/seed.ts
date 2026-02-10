@@ -230,6 +230,151 @@ async function seed() {
     }
     console.log(`  Created ${products.length} products`);
 
+    // 7. Phase 2: Create additional visits for visit-trends chart (spread over 14 days)
+    const additionalVisits = [];
+    for (let daysAgo = 4; daysAgo <= 14; daysAgo++) {
+      const visitDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+      // 1-3 visits per day spread across reps and stores
+      const visitsPerDay = (daysAgo % 3) + 1;
+      for (let v = 0; v < visitsPerDay; v++) {
+        const storeIdx = (daysAgo + v) % stores.length;
+        const empIdx = v % 2 === 0 ? 2 : 3;
+        additionalVisits.push({
+          store_id: stores[storeIdx]!.id,
+          employee_id: employees[empIdx]!.id,
+          checked_in_at: new Date(visitDate.getTime() + (9 + v) * 60 * 60 * 1000).toISOString(),
+          gps_lat: stores[storeIdx]!.lat,
+          gps_lng: stores[storeIdx]!.lng,
+          gps_accuracy_m: 5 + Math.random() * 15,
+          stock_status: ['in_stock', 'in_stock', 'low_stock', 'in_stock'][v % 4]!,
+          notes: `Routine check day -${daysAgo}`,
+          duration_minutes: 10 + Math.floor(Math.random() * 25),
+        });
+      }
+    }
+
+    for (const visit of additionalVisits) {
+      await client.query(
+        `INSERT INTO visits (company_id, store_id, employee_id, checked_in_at, gps_lat, gps_lng, gps_accuracy_m, stock_status, notes, duration_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [companyId, visit.store_id, visit.employee_id, visit.checked_in_at, visit.gps_lat, visit.gps_lng, visit.gps_accuracy_m, visit.stock_status, visit.notes, visit.duration_minutes],
+      );
+    }
+    console.log(`  Created ${additionalVisits.length} additional visits for trends data`);
+
+    // 8. Phase 2: Create daily_routes table data and run migration
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS daily_routes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        employee_id UUID NOT NULL REFERENCES employees(id),
+        date DATE NOT NULL,
+        waypoints JSONB NOT NULL DEFAULT '[]',
+        total_distance_km DECIMAL(8, 2) NOT NULL DEFAULT 0,
+        estimated_duration_minutes INTEGER NOT NULL DEFAULT 0,
+        optimized BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(employee_id, date)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        employee_id UUID NOT NULL REFERENCES employees(id),
+        type TEXT NOT NULL CHECK (type IN ('revisit_reminder', 'oos_alert', 'route_ready', 'system')),
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        store_id UUID REFERENCES stores(id),
+        schedule_id UUID REFERENCES revisit_schedule(id),
+        read BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log('  Phase 2 tables created (daily_routes, notifications)');
+
+    // 9. Create sample notifications
+    const sampleNotifications = [
+      {
+        employee_id: employees[2]!.id,
+        type: 'revisit_reminder',
+        title: 'Revisit Reminder: Lawson Xujiahui',
+        message: 'You have a high priority revisit scheduled for tomorrow at Lawson Xujiahui (Tier B). Reason: oos_detected.',
+        store_id: stores[1]!.id,
+      },
+      {
+        employee_id: employees[2]!.id,
+        type: 'oos_alert',
+        title: 'OOS Alert: Uncle Wang\'s Shop',
+        message: 'Out-of-stock detected at Uncle Wang\'s Shop. A revisit has been scheduled.',
+        store_id: stores[3]!.id,
+      },
+      {
+        employee_id: employees[2]!.id,
+        type: 'route_ready',
+        title: 'Route Optimized',
+        message: 'Your optimized route for today is ready. 6 stores, estimated 3.5 hours.',
+      },
+      {
+        employee_id: employees[3]!.id,
+        type: 'revisit_reminder',
+        title: 'Revisit Reminder: Uncle Wang\'s Shop',
+        message: 'You have a high priority revisit scheduled for tomorrow at Uncle Wang\'s Shop (Tier C). Reason: oos_detected.',
+        store_id: stores[3]!.id,
+      },
+      {
+        employee_id: employees[2]!.id,
+        type: 'system',
+        title: 'Welcome to XunDian',
+        message: 'Your account has been set up. Start by generating your first route!',
+      },
+    ];
+
+    for (const notif of sampleNotifications) {
+      await client.query(
+        `INSERT INTO notifications (company_id, employee_id, type, title, message, store_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [companyId, notif.employee_id, notif.type, notif.title, notif.message, notif.store_id || null],
+      );
+    }
+    console.log(`  Created ${sampleNotifications.length} sample notifications`);
+
+    // 10. Add more revisit schedules for route optimization
+    const additionalSchedules = [
+      {
+        store_id: stores[2]!.id,
+        next_visit_date: new Date().toISOString().split('T')[0],
+        priority: 'normal',
+        reason: 'scheduled',
+        assigned_to: employees[2]!.id,
+      },
+      {
+        store_id: stores[4]!.id,
+        next_visit_date: new Date().toISOString().split('T')[0],
+        priority: 'normal',
+        reason: 'scheduled',
+        assigned_to: employees[2]!.id,
+      },
+      {
+        store_id: stores[5]!.id,
+        next_visit_date: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        priority: 'low',
+        reason: 'scheduled',
+        assigned_to: employees[3]!.id,
+      },
+    ];
+
+    for (const sched of additionalSchedules) {
+      await client.query(
+        `INSERT INTO revisit_schedule (company_id, store_id, next_visit_date, priority, reason, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [companyId, sched.store_id, sched.next_visit_date, sched.priority, sched.reason, sched.assigned_to],
+      );
+    }
+    console.log(`  Created ${additionalSchedules.length} additional revisit schedules`);
+
     await client.query('COMMIT');
     console.log('\nSeed completed successfully!');
     console.log('\nLogin credentials:');

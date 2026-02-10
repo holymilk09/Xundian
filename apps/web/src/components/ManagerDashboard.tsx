@@ -2,8 +2,10 @@
 
 import { useTranslation } from 'react-i18next';
 import KPICard from '@/components/KPICard';
-import AIInsightsCard from '@/components/AIInsightsCard';
 import TeamPerformanceCard from '@/components/TeamPerformanceCard';
+import VisitTrendsChart from '@/components/VisitTrendsChart';
+import CoverageChart from '@/components/CoverageChart';
+import TeamComparisonChart from '@/components/TeamComparisonChart';
 import { useApi } from '@/lib/hooks';
 
 export default function ManagerDashboard() {
@@ -69,15 +71,19 @@ export default function ManagerDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Left: AI Insights + Audit */}
-        <div className="col-span-2 space-y-6">
-          <AIInsightsCard
-            photosProcessed="187"
-            alertsGenerated="12"
-            avgShareOfShelf="31%"
-          />
+      {/* Charts Section */}
+      <div className="mb-6">
+        <VisitTrendsChart />
+      </div>
 
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <CoverageChart />
+        <TeamComparisonChart />
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        {/* Left: Audit */}
+        <div className="col-span-2 space-y-6">
           {/* Audit Mode */}
           <div className="glass-card p-5">
             <div className="flex items-center gap-2 mb-4">

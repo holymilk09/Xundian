@@ -5,7 +5,7 @@ export type StoreType = 'supermarket' | 'convenience' | 'small_shop' | 'other';
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'added_product';
 export type PhotoType = 'shelf' | 'storefront' | 'other';
 export type RevisitPriority = 'high' | 'normal' | 'low';
-export type RevisitReason = 'scheduled' | 'oos_detected' | 'new_product';
+export type RevisitReason = 'scheduled' | 'oos_detected' | 'low_stock' | 'new_product';
 
 export interface Store {
   id: string;

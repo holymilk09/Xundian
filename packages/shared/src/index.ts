@@ -4,6 +4,7 @@ export * from './types/route';
 export * from './types/auth';
 export * from './types/api';
 export * from './types/ai';
+export * from './types/notification';
 export * from './constants/tiers';
 export * from './constants/status';
 export * from './constants/design';

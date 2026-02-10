@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import type { StoreTier, StoreType } from '@xundian/shared';
+import { discoverNearbyStores } from '../services/discovery.js';
 
 interface StoreQuerystring {
   page?: string;
@@ -134,6 +135,25 @@ export async function storeRoutes(app: FastifyInstance) {
       );
 
       return reply.send({ success: true, data: result.rows });
+    },
+  );
+
+  // GET /stores/discover — discover new stores via Gaode POI or mock data
+  app.get<{ Querystring: NearbyQuerystring }>(
+    '/discover',
+    async (request: FastifyRequest<{ Querystring: NearbyQuerystring }>, reply: FastifyReply) => {
+      const companyId = request.companyId;
+      const lat = parseFloat(request.query.lat);
+      const lng = parseFloat(request.query.lng);
+      const radiusM = parseInt(request.query.radius_m || '2000', 10);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        return reply.code(400).send({ success: false, error: 'lat and lng are required' });
+      }
+
+      const results = await discoverNearbyStores(companyId!, lat, lng, radiusM);
+
+      return reply.send({ success: true, data: results });
     },
   );
 

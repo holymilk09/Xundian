@@ -17,6 +17,8 @@ import { companyRoutes } from './routes/companies.js';
 import { syncRoutes } from './routes/sync.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { alertRoutes } from './routes/alerts.js';
+import { routeRoutes } from './routes/routes.js';
+import { notificationRoutes } from './routes/notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -72,6 +74,8 @@ await app.register(companyRoutes, { prefix: '/company' });
 await app.register(syncRoutes, { prefix: '/sync' });
 await app.register(analyticsRoutes, { prefix: '/analytics' });
 await app.register(alertRoutes, { prefix: '/alerts' });
+await app.register(routeRoutes, { prefix: '/routes' });
+await app.register(notificationRoutes, { prefix: '/notifications' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3000', 10);

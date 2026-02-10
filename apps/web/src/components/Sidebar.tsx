@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { getUser, logout } from '@/lib/auth';
+import NotificationBell from './NotificationBell';
 
 interface NavItem {
   href: string;
@@ -53,6 +54,11 @@ export default function Sidebar() {
           <div className="text-white text-lg font-bold leading-tight">{t('appName')}</div>
           <div className="text-muted text-[11px]">{t('tagline')}</div>
         </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="px-3 mb-2">
+        <NotificationBell />
       </div>
 
       {/* Navigation */}

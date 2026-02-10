@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { GPS_CONFIG } from '@xundian/shared';
 import type { StockStatus } from '@xundian/shared';
+import { scheduleNextRevisit } from '../services/scheduler.js';
 
 interface VisitQuerystring {
   page?: string;
@@ -207,6 +208,14 @@ export async function visitRoutes(app: FastifyInstance) {
          RETURNING *`,
         [companyId, store_id, employeeId, checked_in_at, gps_lat, gps_lng, gps_accuracy_m, stock_status, notes || null, duration_minutes || null, is_audit || false],
       );
+
+      // Schedule next revisit based on stock status
+      try {
+        await scheduleNextRevisit(companyId!, store_id, employeeId, stock_status);
+      } catch (err) {
+        // Log but don't fail the visit creation if scheduling fails
+        request.log.error({ err }, 'Failed to schedule next revisit');
+      }
 
       return reply.code(201).send({ success: true, data: result.rows[0] });
     },

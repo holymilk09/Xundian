@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Link from 'next/link';
 import { useApi } from '@/lib/hooks';
+import api from '@/lib/api';
 
 type StoreTier = 'A' | 'B' | 'C';
 
@@ -26,8 +27,22 @@ export default function RepDashboard() {
 
   const { data: repStats, loading: statsLoading } = useApi<any>('/analytics/rep');
   const { data: alerts, loading: alertsLoading } = useApi<any[]>('/alerts');
+  const { data: todayRoute, loading: routeLoading, refetch: refetchRoute } = useApi<any>('/routes/today');
+  const [generating, setGenerating] = useState(false);
 
-  const loading = statsLoading || alertsLoading;
+  const loading = statsLoading || alertsLoading || routeLoading;
+
+  const handleGenerateRoute = async () => {
+    setGenerating(true);
+    try {
+      await api.post('/routes/optimize', { start_lat: 31.23, start_lng: 121.47 });
+      await refetchRoute();
+    } catch {
+      // silently fail
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const stats = [
     { label: t('visited'), value: String(repStats?.visited_this_week ?? '--'), color: '#10B981' },
@@ -71,28 +86,59 @@ export default function RepDashboard() {
       >
         <div className="flex justify-between items-center mb-4">
           <span className="text-white text-base font-bold">{t('todayRoute')}</span>
-          <span className="text-blue-400 text-sm">
-            14 {t('stores')} · 12.4 {t('km')}
-          </span>
+          {todayRoute && (
+            <span className="text-blue-400 text-sm">
+              {todayRoute.waypoints?.length ?? 0} {t('routeStores')} · {todayRoute.total_distance_km ?? '--'} {t('km')}
+            </span>
+          )}
         </div>
+
+        {!todayRoute && !routeLoading && (
+          <p className="text-slate-500 text-sm mb-4">{t('noRouteYet')}</p>
+        )}
+
         <button
-          className="w-full py-3.5 rounded-xl text-white text-[15px] font-semibold border-0"
+          onClick={!todayRoute ? handleGenerateRoute : undefined}
+          disabled={generating}
+          className="w-full py-3.5 rounded-xl text-white text-[15px] font-semibold border-0 disabled:opacity-50"
           style={{
             background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
             boxShadow: '0 4px 16px rgba(59,130,246,0.3)',
           }}
         >
-          {t('startRoute')}
+          {generating ? '...' : todayRoute ? t('startRoute') : t('generateRoute')}
         </button>
-        <div className="flex justify-center gap-5 mt-3">
-          <span className="text-slate-500 text-xs">~3.5h</span>
-          <span className="text-slate-500 text-xs">
-            {lang === 'en' ? 'Pudong A' : '浦东A区'}
-          </span>
-          <span className="text-slate-500 text-xs cursor-pointer hover:text-blue-400 transition-colors">
-            {t('optimizeRoute')}
-          </span>
-        </div>
+
+        {todayRoute && (
+          <div className="flex justify-center gap-5 mt-3">
+            <span className="text-slate-500 text-xs">
+              {todayRoute.estimated_duration_minutes ? `~${Math.round(todayRoute.estimated_duration_minutes / 60 * 10) / 10}h` : '--'}
+            </span>
+            <span className="text-slate-500 text-xs">
+              {t('routeDistance')}: {todayRoute.total_distance_km ?? '--'} {t('km')}
+            </span>
+          </div>
+        )}
+
+        {/* Waypoint List */}
+        {todayRoute?.waypoints && todayRoute.waypoints.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-white/[0.06]">
+            {todayRoute.waypoints.map((wp: any, i: number) => (
+              <div key={wp.store_id} className="flex items-center gap-3 py-2 border-b border-white/[0.06] last:border-0">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${wp.visited ? 'bg-success/20 text-success' : 'bg-white/10 text-slate-400'}`}>
+                  {i + 1}
+                </div>
+                <div className="flex-1">
+                  <span className="text-white text-sm">{wp.store_name}</span>
+                  {wp.tier && <span className="ml-2 text-xs text-slate-500">{wp.tier}</span>}
+                </div>
+                <span className={`text-xs ${wp.visited ? 'text-success' : 'text-slate-500'}`}>
+                  {wp.visited ? t('waypointVisited') : t('waypointPending')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Nearby Stores */}
