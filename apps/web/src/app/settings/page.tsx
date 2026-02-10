@@ -1,15 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_TIER_CONFIG } from '@xundian/shared';
+import { useApi } from '@/lib/hooks';
+import api from '@/lib/api';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
-  const [companyName, setCompanyName] = useState('Haitian Flavoring');
-  const [companyCode, setCompanyCode] = useState('HT-2024');
+  const [companyName, setCompanyName] = useState('');
+  const [companyCode, setCompanyCode] = useState('');
   const [tierConfig, setTierConfig] = useState(DEFAULT_TIER_CONFIG);
   const [language, setLanguage] = useState(i18n.language);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const { data, loading, error } = useApi<any>('/company');
+
+  useEffect(() => {
+    if (data) {
+      setCompanyName(data.name || '');
+      setCompanyCode(data.company_code || '');
+      if (data.tier_config) {
+        setTierConfig(data.tier_config);
+      }
+    }
+  }, [data]);
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang);
@@ -22,6 +38,23 @@ export default function SettingsPage() {
       [tier]: { revisit_days: days },
     }));
   };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await api.put('/company', { name: companyName, tier_config: tierConfig });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <p className="text-slate-400">Loading...</p>;
+  if (error) return <p className="text-danger">{error}</p>;
 
   return (
     <div className="max-w-2xl">
@@ -46,7 +79,6 @@ export default function SettingsPage() {
               <input
                 type="text"
                 value={companyCode}
-                onChange={(e) => setCompanyCode(e.target.value)}
                 className="input-field"
                 disabled
               />
@@ -115,8 +147,12 @@ export default function SettingsPage() {
         </div>
 
         {/* Save */}
-        <button className="btn-primary">
-          {t('saveChanges')}
+        <button
+          className="btn-primary disabled:opacity-50"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? '...' : saved ? (i18n.language === 'en' ? 'Saved!' : '已保存!') : t('saveChanges')}
         </button>
       </div>
     </div>

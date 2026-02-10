@@ -2,7 +2,7 @@ import pg from 'pg';
 import bcrypt from 'bcryptjs';
 
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://xundian:xundian_dev@localhost:5432/xundian',
+  connectionString: process.env.DATABASE_URL || 'postgres://xundian:xundian_dev@localhost:5434/xundian',
 });
 
 async function seed() {

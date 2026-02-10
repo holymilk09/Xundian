@@ -128,18 +128,27 @@ export default function LoginPage() {
                 <button
                   type="button"
                   key={dev.phone}
-                  onClick={() => {
-                    localStorage.setItem('xundian_access_token', 'dev-token');
-                    localStorage.setItem('xundian_refresh_token', 'dev-refresh');
-                    localStorage.setItem('xundian_user', JSON.stringify({
-                      id: dev.phone,
-                      name: dev.name,
-                      phone: dev.phone,
-                      role: dev.role,
-                      company_id: 'demo-company',
-                      company_name: 'Demo Corp',
-                    }));
-                    router.push('/dashboard');
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      await login({ company_code: 'DEMO', phone: dev.phone, password: 'demo123' });
+                      router.push('/dashboard');
+                    } catch {
+                      // Fallback to mock if API is down
+                      localStorage.setItem('xundian_access_token', 'dev-token');
+                      localStorage.setItem('xundian_refresh_token', 'dev-refresh');
+                      localStorage.setItem('xundian_user', JSON.stringify({
+                        id: dev.phone,
+                        name: dev.name,
+                        phone: dev.phone,
+                        role: dev.role,
+                        company_id: '00000000-0000-0000-0000-000000000001',
+                        company_name: 'XunDian Demo Co',
+                      }));
+                      router.push('/dashboard');
+                    } finally {
+                      setLoading(false);
+                    }
                   }}
                   disabled={loading}
                   className="flex-1 py-2 rounded-lg text-[12px] font-semibold border border-white/[0.1] bg-white/[0.03] text-slate-400 hover:bg-white/[0.08] hover:text-white transition-colors disabled:opacity-50"

@@ -2,26 +2,10 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import Link from 'next/link';
+import { useApi } from '@/lib/hooks';
 
-type StockStatus = 'inStock' | 'lowStock' | 'outOfStock' | 'addedProduct';
 type StoreTier = 'A' | 'B' | 'C';
-type StoreType = 'supermarket' | 'convenience' | 'smallShop';
-
-interface MockStore {
-  id: number;
-  name: { en: string; zh: string };
-  type: StoreType;
-  tier: StoreTier;
-  status: StockStatus;
-  lastVisit: number | null;
-}
-
-const statusColors: Record<StockStatus, string> = {
-  inStock: '#10B981',
-  lowStock: '#F59E0B',
-  outOfStock: '#EF4444',
-  addedProduct: '#8B5CF6',
-};
 
 const tierColors: Record<StoreTier, string> = {
   A: '#DC2626',
@@ -29,35 +13,34 @@ const tierColors: Record<StoreTier, string> = {
   C: '#6B7280',
 };
 
-const storeTypeIcons: Record<StoreType, string> = {
-  supermarket: '🏬',
-  convenience: '🏪',
-  smallShop: '🏠',
+const priorityColors: Record<string, string> = {
+  high: '#EF4444',
+  normal: '#3B82F6',
+  low: '#6B7280',
 };
-
-const mockStores: MockStore[] = [
-  { id: 1, name: { en: 'Carrefour Pudong', zh: '家乐福浦东店' }, type: 'supermarket', tier: 'A', status: 'lowStock', lastVisit: 2 },
-  { id: 2, name: { en: 'FamilyMart #2847', zh: '全家便利2847' }, type: 'convenience', tier: 'B', status: 'inStock', lastVisit: 5 },
-  { id: 3, name: { en: 'Uncle Wang Store', zh: '老王小卖部' }, type: 'smallShop', tier: 'C', status: 'outOfStock', lastVisit: 12 },
-  { id: 4, name: { en: 'RT-Mart Century', zh: '大润发世纪店' }, type: 'supermarket', tier: 'A', status: 'inStock', lastVisit: 1 },
-  { id: 5, name: { en: 'Lawson Lujiazui', zh: '罗森陆家嘴' }, type: 'convenience', tier: 'B', status: 'addedProduct', lastVisit: null },
-];
 
 export default function RepDashboard() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const [searchRadius, setSearchRadius] = useState(2);
 
+  const { data: repStats, loading: statsLoading } = useApi<any>('/analytics/rep');
+  const { data: alerts, loading: alertsLoading } = useApi<any[]>('/alerts');
+
+  const loading = statsLoading || alertsLoading;
+
   const stats = [
-    { label: t('visited'), value: '8', color: '#10B981' },
-    { label: t('pending'), value: '6', color: '#3B82F6' },
-    { label: t('overdue'), value: '2', color: '#EF4444' },
-    { label: t('discovered'), value: '1', color: '#8B5CF6' },
+    { label: t('visited'), value: String(repStats?.visited_this_week ?? '--'), color: '#10B981' },
+    { label: t('pending'), value: String(repStats?.pending ?? '--'), color: '#3B82F6' },
+    { label: t('overdue'), value: String(repStats?.overdue ?? '--'), color: '#EF4444' },
+    { label: t('discovered'), value: '0', color: '#8B5CF6' },
   ];
 
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-white mb-6">{t('dashboard')}</h1>
+
+      {loading && <p className="text-slate-400 mb-4">Loading...</p>}
 
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-3 mb-6">
@@ -145,49 +128,58 @@ export default function RepDashboard() {
 
       {/* Store List */}
       <div className="space-y-2">
-        {mockStores.map((store) => (
-          <div
-            key={store.id}
-            className="glass-card p-4 flex items-center gap-3 cursor-pointer hover:bg-white/[0.06] transition-colors"
+        {(alerts || []).map((alert: any) => (
+          <Link
+            key={alert.id || alert.store_id}
+            href={`/stores/${alert.store_id}`}
+            className="glass-card p-4 flex items-center gap-3 cursor-pointer hover:bg-white/[0.06] transition-colors block"
           >
-            {/* Store type icon */}
+            {/* Priority indicator */}
             <div
               className="w-10 h-10 rounded-[10px] flex items-center justify-center text-lg shrink-0"
-              style={{ background: `${statusColors[store.status]}15` }}
+              style={{ background: `${priorityColors[alert.priority] || '#3B82F6'}15` }}
             >
-              {storeTypeIcons[store.type]}
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ background: priorityColors[alert.priority] || '#3B82F6' }}
+              />
             </div>
 
             {/* Store info */}
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center">
                 <span className="text-white text-sm font-semibold truncate">
-                  {store.name[lang]}
+                  {lang === 'zh' ? (alert.store_name_zh || alert.store_name) : alert.store_name}
                 </span>
-                <span
-                  className="text-[11px] font-bold px-2 py-0.5 rounded-[5px] shrink-0 ml-2"
-                  style={{
-                    background: `${tierColors[store.tier]}22`,
-                    color: tierColors[store.tier],
-                  }}
-                >
-                  {store.tier}
-                </span>
+                {alert.tier && (
+                  <span
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-[5px] shrink-0 ml-2"
+                    style={{
+                      background: `${tierColors[alert.tier as StoreTier] || '#6B7280'}22`,
+                      color: tierColors[alert.tier as StoreTier] || '#6B7280',
+                    }}
+                  >
+                    {alert.tier}
+                  </span>
+                )}
               </div>
               <div className="flex justify-between mt-1">
-                <span className="text-xs font-medium" style={{ color: statusColors[store.status] }}>
-                  {t(store.status)}
+                <span className="text-xs font-medium" style={{ color: priorityColors[alert.priority] || '#3B82F6' }}>
+                  {alert.reason || alert.priority}
                 </span>
                 <span className="text-[11px] text-slate-600">
-                  {store.lastVisit !== null ? `${store.lastVisit} ${t('daysAgo')}` : '—'}
+                  {alert.next_visit_date || '--'}
                 </span>
               </div>
             </div>
 
             {/* Chevron */}
             <div className="text-slate-700 text-lg shrink-0">›</div>
-          </div>
+          </Link>
         ))}
+        {!alertsLoading && (!alerts || alerts.length === 0) && (
+          <p className="text-muted text-sm">{lang === 'en' ? 'No revisit reminders' : '暂无巡店提醒'}</p>
+        )}
       </div>
     </div>
   );

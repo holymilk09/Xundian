@@ -4,52 +4,63 @@ import { useTranslation } from 'react-i18next';
 import KPICard from '@/components/KPICard';
 import AIInsightsCard from '@/components/AIInsightsCard';
 import TeamPerformanceCard from '@/components/TeamPerformanceCard';
-
-const mockReps = [
-  { id: 1, name: { en: 'Zhang Wei', zh: '张伟' }, territory: { en: 'Pudong District A', zh: '浦东A区' }, visits: 14, target: 18, coverage: 78, online: true },
-  { id: 2, name: { en: 'Li Na', zh: '李娜' }, territory: { en: 'Pudong District B', zh: '浦东B区' }, visits: 17, target: 18, coverage: 92, online: true },
-  { id: 3, name: { en: 'Wang Jun', zh: '王军' }, territory: { en: 'Puxi District A', zh: '浦西A区' }, visits: 11, target: 18, coverage: 64, online: false },
-  { id: 4, name: { en: 'Chen Mei', zh: '陈梅' }, territory: { en: 'Puxi District B', zh: '浦西B区' }, visits: 16, target: 18, coverage: 85, online: true },
-];
+import { useApi } from '@/lib/hooks';
 
 export default function ManagerDashboard() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
+  const { data: dashboard, loading: dashLoading } = useApi<any>('/analytics/dashboard');
+  const { data: employees, loading: empLoading } = useApi<any[]>('/company/employees');
+
+  const loading = dashLoading || empLoading;
+
   const kpis = [
     {
       label: t('totalStores'),
-      value: '2,847',
+      value: dashboard?.total_stores?.toLocaleString() || '--',
       icon: <StoreKPIIcon />,
       color: '#3B82F6',
       delta: '+12',
     },
     {
       label: t('visitedThisWeek'),
-      value: '1,204',
+      value: dashboard?.visited_this_week?.toLocaleString() || '--',
       icon: <CheckIcon />,
       color: '#10B981',
-      delta: '42%',
+      delta: dashboard?.total_stores ? `${Math.round((dashboard.visited_this_week / dashboard.total_stores) * 100)}%` : '--',
     },
     {
       label: t('oosAlerts'),
-      value: '38',
+      value: String(dashboard?.oos_alerts ?? '--'),
       icon: <AlertIcon />,
       color: '#EF4444',
-      delta: '-5',
+      delta: '',
     },
     {
       label: t('topPerformer'),
-      value: lang === 'en' ? 'Li Na' : '李娜',
+      value: dashboard?.top_performer?.name || '--',
       icon: <TrophyIcon />,
       color: '#F59E0B',
-      delta: '92%',
+      delta: '',
     },
   ];
+
+  const reps = (employees || []).map((emp: any) => ({
+    id: emp.id,
+    name: { en: emp.name, zh: emp.name },
+    territory: { en: '--', zh: '--' },
+    visits: emp.visits_this_week ?? 0,
+    target: 18,
+    coverage: Math.round(((emp.visits_this_week ?? 0) / 18) * 100),
+    online: emp.is_active,
+  }));
 
   return (
     <div className="max-w-6xl">
       <h1 className="text-2xl font-bold text-white mb-6">{t('dashboard')}</h1>
+
+      {loading && <p className="text-slate-400 mb-4">Loading...</p>}
 
       {/* KPI Grid */}
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -94,7 +105,7 @@ export default function ManagerDashboard() {
         <div>
           <h2 className="section-label mb-3">{t('teamPerformance')}</h2>
           <div className="space-y-2">
-            {mockReps.map((rep) => (
+            {reps.map((rep) => (
               <TeamPerformanceCard key={rep.id} rep={rep} />
             ))}
           </div>

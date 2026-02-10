@@ -93,5 +93,17 @@
   "km": "km",
   "min": "min",
   "alerts": "Alerts",
-  "profile": "Profile"
+  "profile": "Profile",
+  "alertsEmpty": "No pending alerts",
+  "highPriority": "High Priority",
+  "normalPriority": "Normal",
+  "lowPriority": "Low",
+  "scheduled": "Scheduled",
+  "oos_detected": "OOS Detected",
+  "new_product": "New Product",
+  "dueDate": "Due",
+  "noPendingAlerts": "No pending alerts. All revisits are on track!",
+  "profileTitle": "My Profile",
+  "companyLabel": "Company",
+  "roleLabel": "Role"
 }

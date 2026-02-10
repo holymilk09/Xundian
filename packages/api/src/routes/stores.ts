@@ -78,8 +78,16 @@ export async function storeRoutes(app: FastifyInstance) {
         `SELECT s.id, s.company_id, s.name, s.name_zh,
                 ST_Y(s.location) as latitude, ST_X(s.location) as longitude,
                 s.address, s.tier, s.store_type, s.contact_name, s.contact_phone,
-                s.gaode_poi_id, s.discovered_by, s.created_at, s.updated_at
+                s.gaode_poi_id, s.discovered_by, s.created_at, s.updated_at,
+                lv.checked_in_at as last_visit_at,
+                lv.stock_status as last_stock_status
          FROM stores s
+         LEFT JOIN LATERAL (
+           SELECT v.checked_in_at, v.stock_status
+           FROM visits v
+           WHERE v.store_id = s.id AND v.company_id = s.company_id
+           ORDER BY v.checked_in_at DESC LIMIT 1
+         ) lv ON true
          WHERE ${where}
          ORDER BY s.created_at DESC
          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -162,11 +170,35 @@ export async function storeRoutes(app: FastifyInstance) {
         [request.params.id, companyId],
       );
 
+      // Get recent visits
+      const recentVisitsResult = await pool.query(
+        `SELECT v.id, v.checked_in_at, v.stock_status, v.notes, v.duration_minutes,
+                e.name as employee_name
+         FROM visits v
+         JOIN employees e ON e.id = v.employee_id
+         WHERE v.store_id = $1 AND v.company_id = $2
+         ORDER BY v.checked_in_at DESC LIMIT 10`,
+        [request.params.id, companyId],
+      );
+
+      // Get latest AI analysis
+      const aiAnalysisResult = await pool.query(
+        `SELECT vp.id, vp.photo_url, vp.photo_type, vp.ai_analysis, vp.ai_processed_at, vp.created_at
+         FROM visit_photos vp
+         JOIN visits v ON v.id = vp.visit_id
+         WHERE v.store_id = $1 AND v.company_id = $2
+         AND vp.ai_analysis IS NOT NULL
+         ORDER BY vp.created_at DESC LIMIT 1`,
+        [request.params.id, companyId],
+      );
+
       return reply.send({
         success: true,
         data: {
           ...store,
           last_visit: lastVisitResult.rows[0] || null,
+          recent_visits: recentVisitsResult.rows,
+          latest_ai_analysis: aiAnalysisResult.rows[0] || null,
         },
       });
     },

@@ -93,5 +93,17 @@
   "km": "公里",
   "min": "分钟",
   "alerts": "预警",
-  "profile": "我的"
+  "profile": "我的",
+  "alertsEmpty": "暂无待办预警",
+  "highPriority": "高优先级",
+  "normalPriority": "普通",
+  "lowPriority": "低",
+  "scheduled": "定期复访",
+  "oos_detected": "缺货预警",
+  "new_product": "新品上架",
+  "dueDate": "截止",
+  "noPendingAlerts": "暂无待办提醒，所有复访均在计划中！",
+  "profileTitle": "我的信息",
+  "companyLabel": "所属企业",
+  "roleLabel": "角色"
 }

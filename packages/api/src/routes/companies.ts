@@ -81,7 +81,17 @@ export async function companyRoutes(app: FastifyInstance) {
       const companyId = request.companyId;
 
       const result = await pool.query(
-        'SELECT id, company_id, name, phone, role, territory_id, is_active, created_at FROM employees WHERE company_id = $1 ORDER BY created_at',
+        `SELECT e.id, e.company_id, e.name, e.phone, e.role, e.territory_id, e.is_active, e.created_at,
+                COALESCE(vc.cnt, 0)::int as visits_this_week
+         FROM employees e
+         LEFT JOIN (
+           SELECT employee_id, COUNT(*) as cnt
+           FROM visits
+           WHERE company_id = $1 AND checked_in_at > NOW() - INTERVAL '7 days'
+           GROUP BY employee_id
+         ) vc ON vc.employee_id = e.id
+         WHERE e.company_id = $1
+         ORDER BY e.created_at`,
         [companyId],
       );
 
