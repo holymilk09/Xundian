@@ -167,6 +167,63 @@ export async function analyticsRoutes(app: FastifyInstance) {
     },
   );
 
+  // GET /analytics/ai — AI processing statistics
+  app.get(
+    '/ai',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const companyId = request.companyId;
+
+      const [processedResult, pendingResult, avgConfResult, avgSosResult, alertsResult] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.company_id = $1 AND vp.ai_analysis IS NOT NULL`,
+          [companyId],
+        ),
+        pool.query(
+          `SELECT COUNT(*) FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.company_id = $1 AND vp.ai_analysis IS NULL`,
+          [companyId],
+        ),
+        pool.query(
+          `SELECT AVG((vp.ai_analysis->>'confidence')::numeric) as avg_confidence
+           FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.company_id = $1 AND vp.ai_analysis IS NOT NULL`,
+          [companyId],
+        ),
+        pool.query(
+          `SELECT AVG((vp.ai_analysis->>'share_of_shelf_percent')::numeric) as avg_sos
+           FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.company_id = $1 AND vp.ai_analysis IS NOT NULL`,
+          [companyId],
+        ),
+        pool.query(
+          `SELECT COUNT(*) FROM notifications
+           WHERE company_id = $1 AND type = 'oos_alert'`,
+          [companyId],
+        ),
+      ]);
+
+      return reply.send({
+        success: true,
+        data: {
+          photos_processed: parseInt(processedResult.rows[0]!.count as string, 10),
+          photos_pending: parseInt(pendingResult.rows[0]!.count as string, 10),
+          avg_confidence: avgConfResult.rows[0]?.avg_confidence
+            ? parseFloat(parseFloat(avgConfResult.rows[0].avg_confidence as string).toFixed(2))
+            : null,
+          avg_share_of_shelf: avgSosResult.rows[0]?.avg_sos
+            ? parseFloat(parseFloat(avgSosResult.rows[0].avg_sos as string).toFixed(1))
+            : null,
+          alerts_from_ai: parseInt(alertsResult.rows[0]!.count as string, 10),
+        },
+      });
+    },
+  );
+
   // GET /analytics/team-comparison — per-rep stats this week
   app.get(
     '/team-comparison',

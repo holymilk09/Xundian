@@ -14,7 +14,7 @@ declare module 'fastify' {
   }
 }
 
-const SKIP_AUTH_PREFIXES = ['/auth/', '/health'];
+const SKIP_AUTH_PREFIXES = ['/auth/', '/health', '/ai/webhook'];
 
 function shouldSkipAuth(url: string): boolean {
   return SKIP_AUTH_PREFIXES.some((prefix) => url.startsWith(prefix));

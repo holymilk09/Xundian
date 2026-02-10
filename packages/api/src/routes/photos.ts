@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db/pool.js';
 import type { PhotoType } from '@xundian/shared';
+import { submitPhotoForProcessing } from '../services/aiProxy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -55,6 +56,12 @@ export async function photoRoutes(app: FastifyInstance) {
          RETURNING *`,
         [visitId, photoUrl, photoType],
       );
+
+      // Auto-process with AI if AI server is configured or auto_process requested
+      const autoProcess = (data.fields.auto_process as { value?: string } | undefined)?.value === 'true';
+      if (process.env.AI_SERVER_URL || autoProcess) {
+        submitPhotoForProcessing(result.rows[0]!.id as string, companyId!);
+      }
 
       return reply.code(201).send({ success: true, data: result.rows[0] });
     },

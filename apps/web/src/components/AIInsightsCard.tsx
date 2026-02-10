@@ -6,12 +6,14 @@ interface AIInsightsCardProps {
   photosProcessed: string;
   alertsGenerated: string;
   avgShareOfShelf: string;
+  oosWarning?: string | null;
 }
 
 export default function AIInsightsCard({
   photosProcessed,
   alertsGenerated,
   avgShareOfShelf,
+  oosWarning,
 }: AIInsightsCardProps) {
   const { t } = useTranslation();
 
@@ -41,9 +43,11 @@ export default function AIInsightsCard({
         ))}
       </div>
 
-      <div className="rounded-lg bg-danger/[0.08] p-3 text-danger text-xs leading-relaxed">
-        {t('oosWarning')}
-      </div>
+      {oosWarning && (
+        <div className="rounded-lg bg-danger/[0.08] p-3 text-danger text-xs leading-relaxed">
+          {oosWarning}
+        </div>
+      )}
     </div>
   );
 }

@@ -230,7 +230,124 @@ async function seed() {
     }
     console.log(`  Created ${products.length} products`);
 
-    // 7. Phase 2: Create additional visits for visit-trends chart (spread over 14 days)
+    // 7. Phase 3: Create visit_photos with AI analysis
+    const visitPhotos = [
+      {
+        visit_id: visits[0]!.id,
+        photo_url: 'https://oss.example.com/photos/visit-301-shelf1.jpg',
+        photo_type: 'shelf',
+        ai_analysis: {
+          our_products: [
+            { name: 'Green Tea 500ml', facing_count: 6, stock_level: 'high', shelf_position: 'eye' },
+            { name: 'Cola 330ml', facing_count: 4, stock_level: 'medium', shelf_position: 'middle' },
+          ],
+          total_category_facings: 30,
+          share_of_shelf_percent: 33,
+          competitors: [
+            { name: 'Pepsi', facing_count: 8 },
+            { name: 'Wahaha', facing_count: 5 },
+          ],
+          anomalies: [],
+          confidence: 0.92,
+        },
+        ai_processed_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        visit_id: visits[1]!.id,
+        photo_url: 'https://oss.example.com/photos/visit-302-shelf1.jpg',
+        photo_type: 'shelf',
+        ai_analysis: {
+          our_products: [
+            { name: 'Green Tea 500ml', facing_count: 2, stock_level: 'low', shelf_position: 'bottom' },
+            { name: 'Instant Noodles Beef', facing_count: 3, stock_level: 'medium', shelf_position: 'middle' },
+          ],
+          total_category_facings: 25,
+          share_of_shelf_percent: 20,
+          competitors: [
+            { name: 'Master Kong', facing_count: 10 },
+          ],
+          anomalies: ['Green Tea nearly out of stock'],
+          confidence: 0.87,
+        },
+        ai_processed_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        visit_id: visits[2]!.id,
+        photo_url: 'https://oss.example.com/photos/visit-303-shelf1.jpg',
+        photo_type: 'shelf',
+        ai_analysis: {
+          our_products: [
+            { name: 'Potato Chips Original', facing_count: 0, stock_level: 'empty', shelf_position: 'eye' },
+            { name: 'Cola 330ml', facing_count: 1, stock_level: 'low', shelf_position: 'bottom' },
+          ],
+          total_category_facings: 18,
+          share_of_shelf_percent: 6,
+          competitors: [
+            { name: 'Lay\'s', facing_count: 7 },
+            { name: 'Pepsi', facing_count: 4 },
+          ],
+          anomalies: ['Potato Chips completely out of stock', 'Cola nearly depleted'],
+          confidence: 0.85,
+        },
+        ai_processed_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    for (const photo of visitPhotos) {
+      await client.query(
+        `INSERT INTO visit_photos (visit_id, photo_url, photo_type, ai_analysis, ai_processed_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [photo.visit_id, photo.photo_url, photo.photo_type, JSON.stringify(photo.ai_analysis), photo.ai_processed_at],
+      );
+    }
+    console.log(`  Created ${visitPhotos.length} visit photos with AI analysis`);
+
+    // 7b. Phase 3: Create inventory predictions
+    const productRows = await client.query(
+      `SELECT id, name FROM products WHERE company_id = $1 LIMIT 4`,
+      [companyId],
+    );
+    const productIds = productRows.rows;
+
+    if (productIds.length >= 2) {
+      const inventoryPredictions = [
+        {
+          store_id: stores[1]!.id,
+          product_id: productIds[0]!.id,
+          predicted_stockout_date: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          confidence: 0.89,
+          recommended_revisit_date: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          model_version: 'xgb-v1.0',
+        },
+        {
+          store_id: stores[3]!.id,
+          product_id: productIds[3]?.id || productIds[1]!.id,
+          predicted_stockout_date: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          confidence: 0.94,
+          recommended_revisit_date: new Date().toISOString().split('T')[0],
+          model_version: 'xgb-v1.0',
+        },
+        {
+          store_id: stores[0]!.id,
+          product_id: productIds[1]!.id,
+          predicted_stockout_date: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          confidence: 0.72,
+          recommended_revisit_date: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          model_version: 'xgb-v1.0',
+        },
+      ];
+
+      for (const pred of inventoryPredictions) {
+        await client.query(
+          `INSERT INTO inventory_predictions (store_id, product_id, predicted_stockout_date, confidence, recommended_revisit_date, model_version)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [pred.store_id, pred.product_id, pred.predicted_stockout_date, pred.confidence, pred.recommended_revisit_date, pred.model_version],
+        );
+      }
+      console.log(`  Created ${inventoryPredictions.length} inventory predictions`);
+    }
+
+    // 8. Phase 2: Create additional visits for visit-trends chart (spread over 14 days)
     const additionalVisits = [];
     for (let daysAgo = 4; daysAgo <= 14; daysAgo++) {
       const visitDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);

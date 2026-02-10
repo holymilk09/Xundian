@@ -6,6 +6,8 @@ import TeamPerformanceCard from '@/components/TeamPerformanceCard';
 import VisitTrendsChart from '@/components/VisitTrendsChart';
 import CoverageChart from '@/components/CoverageChart';
 import TeamComparisonChart from '@/components/TeamComparisonChart';
+import AIInsightsCard from '@/components/AIInsightsCard';
+import AtRiskStoresCard from '@/components/AtRiskStoresCard';
 import { useApi } from '@/lib/hooks';
 
 export default function ManagerDashboard() {
@@ -14,6 +16,7 @@ export default function ManagerDashboard() {
 
   const { data: dashboard, loading: dashLoading } = useApi<any>('/analytics/dashboard');
   const { data: employees, loading: empLoading } = useApi<any[]>('/company/employees');
+  const { data: aiAnalytics } = useApi<any>('/analytics/ai');
 
   const loading = dashLoading || empLoading;
 
@@ -79,6 +82,16 @@ export default function ManagerDashboard() {
       <div className="grid grid-cols-2 gap-6 mb-6">
         <CoverageChart />
         <TeamComparisonChart />
+      </div>
+
+      {/* AI Insights Row */}
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        <AIInsightsCard
+          photosProcessed={String(aiAnalytics?.photos_processed ?? '--')}
+          alertsGenerated={String(aiAnalytics?.alerts_generated ?? '--')}
+          avgShareOfShelf={aiAnalytics?.avg_share_of_shelf != null ? `${Math.round(aiAnalytics.avg_share_of_shelf)}%` : '--'}
+        />
+        <AtRiskStoresCard />
       </div>
 
       <div className="grid grid-cols-3 gap-6">

@@ -9,6 +9,7 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const { data: store, loading, error } = useApi<any>(`/stores/${params.id}`);
+  const { data: predictions } = useApi<any[]>(`/predictions/store/${params.id}`);
 
   const statusDotColor: Record<string, string> = {
     in_stock: 'bg-success',
@@ -160,6 +161,68 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
             </div>
           )}
         </div>
+      </div>
+
+      {/* Predictions Section */}
+      <div className="mt-8">
+        <h2 className="section-label mb-3">{t('predictions')}</h2>
+        {predictions && predictions.length > 0 ? (
+          <div className="space-y-2">
+            {predictions.map((pred: any, i: number) => {
+              const daysUntil = pred.predicted_stockout_date
+                ? Math.max(0, Math.ceil((new Date(pred.predicted_stockout_date).getTime() - Date.now()) / 86400000))
+                : null;
+              const urgencyColor = daysUntil !== null && daysUntil <= 3
+                ? 'text-danger'
+                : daysUntil !== null && daysUntil <= 7
+                  ? 'text-warning'
+                  : 'text-success';
+
+              return (
+                <div key={i} className="glass-card p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-white text-sm font-medium">{pred.product_name || '--'}</div>
+                    <div className="text-muted text-[11px] mt-1">
+                      {t('predictedStockout')}: {pred.predicted_stockout_date
+                        ? new Date(pred.predicted_stockout_date).toLocaleDateString()
+                        : '--'}
+                    </div>
+                    {pred.recommended_revisit_date && (
+                      <div className="text-muted text-[11px]">
+                        {t('recommendedRevisit')}: {new Date(pred.recommended_revisit_date).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {daysUntil !== null && (
+                      <span className={`text-lg font-bold ${urgencyColor}`}>
+                        {daysUntil}{t('daysUntilStockout')}
+                      </span>
+                    )}
+                    <div className="w-20">
+                      <div className="text-muted text-[10px] text-right mb-1">{t('confidence')}</div>
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[#8B5CF6]"
+                            style={{ width: `${Math.round((pred.confidence || 0) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-muted text-[10px]">
+                          {Math.round((pred.confidence || 0) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="glass-card p-4 text-center text-muted text-sm">
+            {t('noPredictions')}
+          </div>
+        )}
       </div>
     </div>
   );

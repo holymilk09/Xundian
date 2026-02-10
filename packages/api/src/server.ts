@@ -19,6 +19,8 @@ import { analyticsRoutes } from './routes/analytics.js';
 import { alertRoutes } from './routes/alerts.js';
 import { routeRoutes } from './routes/routes.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { aiRoutes } from './routes/ai.js';
+import { predictionRoutes } from './routes/predictions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,6 +78,8 @@ await app.register(analyticsRoutes, { prefix: '/analytics' });
 await app.register(alertRoutes, { prefix: '/alerts' });
 await app.register(routeRoutes, { prefix: '/routes' });
 await app.register(notificationRoutes, { prefix: '/notifications' });
+await app.register(aiRoutes, { prefix: '/ai' });
+await app.register(predictionRoutes, { prefix: '/predictions' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3000', 10);
