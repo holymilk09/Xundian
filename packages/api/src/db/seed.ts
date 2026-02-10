@@ -87,6 +87,94 @@ async function seed() {
     `);
     console.log('  Phase 2 tables created (daily_routes, notifications)');
 
+    // Sprint 2 tables: shelf_comparisons and checklist_templates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shelf_comparisons (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        store_id UUID NOT NULL REFERENCES stores(id),
+        current_photo_id UUID NOT NULL REFERENCES visit_photos(id),
+        previous_photo_id UUID NOT NULL REFERENCES visit_photos(id),
+        diff_result JSONB NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('positive', 'neutral', 'warning', 'critical')),
+        confidence DECIMAL(3, 2) NOT NULL DEFAULT 0,
+        reviewed BOOLEAN NOT NULL DEFAULT false,
+        reviewed_by UUID REFERENCES employees(id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS checklist_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        name TEXT NOT NULL,
+        name_zh TEXT,
+        items JSONB NOT NULL DEFAULT '[]',
+        assigned_tiers TEXT[] NOT NULL DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by UUID REFERENCES employees(id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS visit_checklist_results (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        visit_id UUID NOT NULL REFERENCES visits(id),
+        template_id UUID NOT NULL REFERENCES checklist_templates(id),
+        results JSONB NOT NULL DEFAULT '[]',
+        completion_rate DECIMAL(5, 2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log('  Sprint 2 tables created (shelf_comparisons, checklist_templates, visit_checklist_results)');
+
+    // Sprint 3 tables: monthly_goals, goal_progress, visit_integrity_flags
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS monthly_goals (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        month DATE NOT NULL,
+        goals JSONB NOT NULL DEFAULT '[]',
+        created_by UUID REFERENCES employees(id),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(company_id, month)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS goal_progress (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        goal_id UUID NOT NULL REFERENCES monthly_goals(id),
+        employee_id UUID NOT NULL REFERENCES employees(id),
+        progress JSONB NOT NULL DEFAULT '[]',
+        verified_count INTEGER NOT NULL DEFAULT 0,
+        flagged_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(goal_id, employee_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS visit_integrity_flags (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        visit_id UUID NOT NULL REFERENCES visits(id),
+        flag_type TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('warning', 'critical')),
+        details JSONB NOT NULL DEFAULT '{}',
+        resolved BOOLEAN NOT NULL DEFAULT false,
+        resolved_by UUID REFERENCES employees(id),
+        resolved_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_integrity_flags_visit ON visit_integrity_flags(visit_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_integrity_flags_unresolved ON visit_integrity_flags(resolved) WHERE NOT resolved`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_goal_progress_employee ON goal_progress(employee_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_monthly_goals_month ON monthly_goals(company_id, month)`);
+    console.log('  Sprint 3 tables created (monthly_goals, goal_progress, visit_integrity_flags)');
+
     // Sprint 1 migration: add store onboarding columns
     await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS discovered_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS storefront_photo_url TEXT`);
@@ -511,7 +599,113 @@ async function seed() {
     }
     console.log(`  Created ${sampleNotifications.length} sample notifications`);
 
-    // 10. Add more revisit schedules for route optimization
+    // 10. Sprint 2: Shelf comparisons seed data
+    // Get visit photo IDs for shelf comparisons
+    const photoRows = await client.query(
+      `SELECT vp.id, v.store_id FROM visit_photos vp JOIN visits v ON v.id = vp.visit_id ORDER BY vp.created_at ASC LIMIT 3`,
+    );
+    const photoIds = photoRows.rows as { id: string; store_id: string }[];
+
+    if (photoIds.length >= 2) {
+      const shelfComparisons = [
+        {
+          store_id: photoIds[0]!.store_id,
+          current_photo_id: photoIds[1]!.id,
+          previous_photo_id: photoIds[0]!.id,
+          diff_result: {
+            sos_change: { previous: 28, current: 33, delta: '+5%' },
+            facing_changes: [
+              { product: '豆瓣酱500克', previous: 4, current: 6, change: '+2' },
+              { product: '特级酱油500毫升', previous: 4, current: 4, change: '0' },
+            ],
+            competitor_changes: [
+              { brand: '李锦记', change: '-1 facing' },
+            ],
+            new_items_detected: [],
+            missing_items: [],
+            compliance: { price_tag_present: true, product_facing_forward: true, shelf_clean: true },
+          },
+          severity: 'positive',
+          confidence: 0.91,
+        },
+        {
+          store_id: photoIds[1]!.store_id,
+          current_photo_id: photoIds[2]?.id || photoIds[1]!.id,
+          previous_photo_id: photoIds[1]!.id,
+          diff_result: {
+            sos_change: { previous: 25, current: 18, delta: '-7%' },
+            facing_changes: [
+              { product: '花椒油250毫升', previous: 4, current: 2, change: '-2' },
+              { product: '火锅底料麻辣200克', previous: 3, current: 3, change: '0' },
+            ],
+            competitor_changes: [
+              { brand: '厨邦', change: '+3 facings' },
+              { brand: '海天', change: '+1 facing' },
+            ],
+            new_items_detected: ['海天蚝油 350ml'],
+            missing_items: ['花椒油250毫升 (低库存)'],
+            compliance: { price_tag_present: false, product_facing_forward: true, shelf_clean: false },
+          },
+          severity: 'warning',
+          confidence: 0.87,
+        },
+      ];
+
+      for (const sc of shelfComparisons) {
+        await client.query(
+          `INSERT INTO shelf_comparisons (store_id, current_photo_id, previous_photo_id, diff_result, severity, confidence)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [sc.store_id, sc.current_photo_id, sc.previous_photo_id, JSON.stringify(sc.diff_result), sc.severity, sc.confidence],
+        );
+      }
+      console.log(`  Created ${shelfComparisons.length} shelf comparisons`);
+    }
+
+    // 10b. Sprint 2: Checklist templates seed data
+    const checklistTemplates = [
+      {
+        id: '00000000-0000-0000-0000-000000000501',
+        name: 'Standard Visit Checklist',
+        name_zh: '标准巡检清单',
+        items: [
+          { id: 'chk-1', label: 'Shelf photo taken', label_zh: '已拍货架照片', type: 'photo', required: true },
+          { id: 'chk-2', label: 'Price tags visible', label_zh: '价签清晰可见', type: 'yes_no', required: true },
+          { id: 'chk-3', label: 'Products facing forward', label_zh: '产品正面朝外', type: 'yes_no', required: true },
+          { id: 'chk-4', label: 'Shelf clean and organized', label_zh: '货架整洁有序', type: 'yes_no', required: false },
+          { id: 'chk-5', label: 'Competitor count', label_zh: '竞品数量', type: 'numeric', required: false },
+          { id: 'chk-6', label: 'Store manager feedback', label_zh: '店主反馈', type: 'text', required: false },
+        ],
+        assigned_tiers: ['A', 'B', 'C'],
+        created_by: employees[1]!.id,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000502',
+        name: 'Premium Store Checklist',
+        name_zh: 'A级门店专用清单',
+        items: [
+          { id: 'chk-p1', label: 'Shelf photo taken', label_zh: '已拍货架照片', type: 'photo', required: true },
+          { id: 'chk-p2', label: 'Promotion display set up', label_zh: '促销展架已搭建', type: 'yes_no', required: true },
+          { id: 'chk-p3', label: 'Stock level', label_zh: '库存水平', type: 'dropdown', required: true, options: ['Full', 'Adequate', 'Low', 'Empty'] },
+          { id: 'chk-p4', label: 'Storefront photo', label_zh: '门头照片', type: 'photo', required: true },
+          { id: 'chk-p5', label: 'Our facings count', label_zh: '我方陈列面数', type: 'numeric', required: true },
+          { id: 'chk-p6', label: 'Notes', label_zh: '备注', type: 'text', required: false },
+        ],
+        assigned_tiers: ['A'],
+        created_by: employees[1]!.id,
+      },
+    ];
+
+    for (const tmpl of checklistTemplates) {
+      await client.query(
+        `INSERT INTO checklist_templates (id, company_id, name, name_zh, items, assigned_tiers, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO NOTHING`,
+        [tmpl.id, companyId, tmpl.name, tmpl.name_zh, JSON.stringify(tmpl.items), tmpl.assigned_tiers, tmpl.created_by],
+      );
+    }
+    console.log(`  Created ${checklistTemplates.length} checklist templates`);
+
+    // 11. Add more revisit schedules for route optimization
     const additionalSchedules = [
       {
         store_id: stores[2]!.id,
@@ -544,6 +738,72 @@ async function seed() {
       );
     }
     console.log(`  Created ${additionalSchedules.length} additional revisit schedules`);
+
+    // 12. Sprint 3: Monthly goals for current month
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const goalId = '00000000-0000-0000-0000-000000000601';
+
+    await client.query(
+      `INSERT INTO monthly_goals (id, company_id, month, goals, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (company_id, month) DO NOTHING`,
+      [
+        goalId, companyId, currentMonth,
+        JSON.stringify([
+          { id: 'g1', metric: 'visits_target', target: 20, label: 'Complete 20 store visits', label_zh: '完成20次巡店' },
+          { id: 'g2', metric: 'stores_target', target: 6, label: 'Visit 6 unique stores', label_zh: '巡访6家不同门店' },
+          { id: 'g3', metric: 'coverage_percent', target: 85, label: 'Achieve 85% territory coverage', label_zh: '达到85%区域覆盖率' },
+          { id: 'g4', metric: 'new_stores_target', target: 2, label: 'Discover 2 new stores', label_zh: '发现2家新门店' },
+        ]),
+        employees[1]!.id,
+      ],
+    );
+
+    for (const repIdx of [2, 3]) {
+      const repVisits = repIdx === 2 ? 12 : 8;
+      const repStores = repIdx === 2 ? 5 : 4;
+      await client.query(
+        `INSERT INTO goal_progress (goal_id, employee_id, progress, verified_count, flagged_count)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (goal_id, employee_id) DO NOTHING`,
+        [
+          goalId, employees[repIdx]!.id,
+          JSON.stringify([
+            { goal_id: 'g1', metric: 'visits_target', target: 20, current: repVisits, verified: repVisits - 1, flagged: 1, percent: Math.round((repVisits / 20) * 100) },
+            { goal_id: 'g2', metric: 'stores_target', target: 6, current: repStores, verified: repStores, flagged: 0, percent: Math.round((repStores / 6) * 100) },
+            { goal_id: 'g3', metric: 'coverage_percent', target: 85, current: repIdx === 2 ? 72 : 58, verified: repIdx === 2 ? 72 : 58, flagged: 0, percent: repIdx === 2 ? 85 : 68 },
+            { goal_id: 'g4', metric: 'new_stores_target', target: 2, current: repIdx === 2 ? 1 : 0, verified: repIdx === 2 ? 1 : 0, flagged: 0, percent: repIdx === 2 ? 50 : 0 },
+          ]),
+          repVisits - 1, 1,
+        ],
+      );
+    }
+    console.log('  Created monthly goals + progress for 2 reps');
+
+    // 13. Sprint 3: Visit integrity flags
+    const integrityFlags = [
+      {
+        visit_id: visits[1]!.id,
+        flag_type: 'visit_too_short',
+        severity: 'warning',
+        details: { actual_duration_minutes: 2, minimum_required: 3, message: 'Visit lasted only 2 minutes' },
+      },
+      {
+        visit_id: visits[2]!.id,
+        flag_type: 'gps_accuracy_low',
+        severity: 'warning',
+        details: { accuracy_m: 65, threshold_m: 50, message: 'GPS accuracy was 65m, threshold is 50m' },
+      },
+    ];
+
+    for (const flag of integrityFlags) {
+      await client.query(
+        `INSERT INTO visit_integrity_flags (visit_id, flag_type, severity, details)
+         VALUES ($1, $2, $3, $4)`,
+        [flag.visit_id, flag.flag_type, flag.severity, JSON.stringify(flag.details)],
+      );
+    }
+    console.log(`  Created ${integrityFlags.length} integrity flags`);
 
     await client.query('COMMIT');
     console.log('\nSeed completed successfully!');

@@ -21,6 +21,11 @@ import { routeRoutes } from './routes/routes.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { aiRoutes } from './routes/ai.js';
 import { predictionRoutes } from './routes/predictions.js';
+import { shelfDiffRoutes } from './routes/shelfDiff.js';
+import { checklistRoutes } from './routes/checklists.js';
+import { goalRoutes } from './routes/goals.js';
+import { integrityRoutes } from './routes/integrity.js';
+import { reportRoutes } from './routes/reports.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +85,11 @@ await app.register(routeRoutes, { prefix: '/routes' });
 await app.register(notificationRoutes, { prefix: '/notifications' });
 await app.register(aiRoutes, { prefix: '/ai' });
 await app.register(predictionRoutes, { prefix: '/predictions' });
+await app.register(shelfDiffRoutes, { prefix: '/shelf-diffs' });
+await app.register(checklistRoutes, { prefix: '/checklists' });
+await app.register(goalRoutes, { prefix: '/goals' });
+await app.register(integrityRoutes, { prefix: '/integrity' });
+await app.register(reportRoutes, { prefix: '/reports' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3000', 10);

@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { GPS_CONFIG } from '@xundian/shared';
 import type { StockStatus } from '@xundian/shared';
 import { scheduleNextRevisit } from '../services/scheduler.js';
+import { checkVisitIntegrity } from '../services/integrity.js';
 
 interface VisitQuerystring {
   page?: string;
@@ -208,6 +209,12 @@ export async function visitRoutes(app: FastifyInstance) {
          RETURNING *`,
         [companyId, store_id, employeeId, checked_in_at, gps_lat, gps_lng, gps_accuracy_m, stock_status, notes || null, duration_minutes || null, is_audit || false],
       );
+
+      // Fire-and-forget integrity check
+      const newVisit = result.rows[0] as Record<string, unknown>;
+      checkVisitIntegrity(companyId!, newVisit.id as string).catch((err) => {
+        request.log.error({ err }, 'Integrity check failed');
+      });
 
       // Schedule next revisit based on stock status
       try {

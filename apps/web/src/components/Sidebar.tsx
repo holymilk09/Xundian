@@ -17,6 +17,11 @@ const managerNav: NavItem[] = [
   { href: '/stores', icon: StoreIcon, labelKey: 'stores' },
   { href: '/store-map', icon: MapIcon, labelKey: 'storeMap' },
   { href: '/employees', icon: EmployeesIcon, labelKey: 'employees' },
+  { href: '/shelf-diff', icon: ShelfDiffIcon, labelKey: 'shelfDiff' },
+  { href: '/checklists', icon: ChecklistIcon, labelKey: 'checklists' },
+  { href: '/goals', icon: GoalsIcon, labelKey: 'goals' },
+  { href: '/integrity', icon: IntegrityIcon, labelKey: 'integrity' },
+  { href: '/reports', icon: ReportsIcon, labelKey: 'reports' },
   { href: '/ai-insights', icon: AIInsightsIcon, labelKey: 'aiInsights' },
   { href: '/settings', icon: SettingsIcon, labelKey: 'settings' },
 ];
@@ -24,6 +29,7 @@ const managerNav: NavItem[] = [
 const repNav: NavItem[] = [
   { href: '/dashboard', icon: DashboardIcon, labelKey: 'dashboard' },
   { href: '/stores', icon: StoreIcon, labelKey: 'stores' },
+  { href: '/goals', icon: GoalsIcon, labelKey: 'myGoals' },
   { href: '/alerts', icon: AlertsIcon, labelKey: 'alerts' },
   { href: '/profile', icon: ProfileIcon, labelKey: 'profile' },
 ];
@@ -73,9 +79,11 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? item.href === '/ai-insights'
+                  ? item.href === '/ai-insights' || item.href === '/shelf-diff'
                     ? 'bg-[#8B5CF6]/10 text-[#8B5CF6]'
-                    : 'bg-primary/10 text-primary'
+                    : item.href === '/integrity'
+                      ? 'bg-[#EF4444]/10 text-[#EF4444]'
+                      : 'bg-primary/10 text-primary'
                   : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
               }`}
             >
@@ -179,6 +187,60 @@ function MapIcon({ active }: { active: boolean }) {
       <polygon points="1,6 1,22 8,18 16,22 23,18 23,2 16,6 8,2" />
       <line x1="8" y1="2" x2="8" y2="18" />
       <line x1="16" y1="6" x2="16" y2="22" />
+    </svg>
+  );
+}
+
+function ShelfDiffIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#8B5CF6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="8" height="18" rx="1" />
+      <rect x="14" y="3" width="8" height="18" rx="1" />
+      <path d="M6 8h0" />
+      <path d="M6 12h0" />
+      <path d="M6 16h0" />
+      <path d="M18 8h0" />
+      <path d="M18 12h0" />
+      <path d="M18 16h0" />
+    </svg>
+  );
+}
+
+function ChecklistIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    </svg>
+  );
+}
+
+function GoalsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IntegrityIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#EF4444' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function ReportsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14,2 14,8 20,8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
     </svg>
   );
 }

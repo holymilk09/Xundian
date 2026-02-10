@@ -91,5 +91,40 @@ export interface InventoryPrediction {
   created_at: string;
 }
 
+export type ShelfDiffSeverity = 'positive' | 'neutral' | 'warning' | 'critical';
+
+export interface ShelfDiffFacingChange {
+  product: string;
+  previous: number;
+  current: number;
+  change: string;
+}
+
+export interface ShelfDiffResult {
+  sos_change: { previous: number; current: number; delta: string };
+  facing_changes: ShelfDiffFacingChange[];
+  competitor_changes: { brand: string; change: string }[];
+  new_items_detected: string[];
+  missing_items: string[];
+  compliance: {
+    price_tag_present: boolean;
+    product_facing_forward: boolean;
+    shelf_clean: boolean;
+  };
+}
+
+export interface ShelfComparison {
+  id: string;
+  store_id: string;
+  current_photo_id: string;
+  previous_photo_id: string;
+  diff_result: ShelfDiffResult;
+  severity: ShelfDiffSeverity;
+  confidence: number;
+  reviewed: boolean;
+  reviewed_by?: string;
+  created_at: string;
+}
+
 // Re-export AI types used in store context
 export type { AIShelfAnalysis } from './ai';
