@@ -21,6 +21,7 @@ const managerNav: NavItem[] = [
   { href: '/shelf-diff', icon: ShelfDiffIcon, labelKey: 'shelfDiff' },
   { href: '/checklists', icon: ChecklistIcon, labelKey: 'checklists' },
   { href: '/goals', icon: GoalsIcon, labelKey: 'goals' },
+  { href: '/promotions', icon: PromotionsIcon, labelKey: 'promotions' },
   { href: '/integrity', icon: IntegrityIcon, labelKey: 'integrity' },
   { href: '/reports', icon: ReportsIcon, labelKey: 'reports' },
   { href: '/ai-insights', icon: AIInsightsIcon, labelKey: 'aiInsights' },
@@ -32,6 +33,7 @@ const repNav: NavItem[] = [
   { href: '/stores', icon: StoreIcon, labelKey: 'stores' },
   { href: '/route-planner', icon: RouteIcon, labelKey: 'routePlanner' },
   { href: '/goals', icon: GoalsIcon, labelKey: 'myGoals' },
+  { href: '/promotions', icon: PromotionsIcon, labelKey: 'promotions' },
   { href: '/alerts', icon: AlertsIcon, labelKey: 'alerts' },
   { href: '/profile', icon: ProfileIcon, labelKey: 'profile' },
 ];
@@ -85,7 +87,9 @@ export default function Sidebar() {
                     ? 'bg-[#8B5CF6]/10 text-[#8B5CF6]'
                     : item.href === '/integrity'
                       ? 'bg-[#EF4444]/10 text-[#EF4444]'
-                      : 'bg-primary/10 text-primary'
+                      : item.href === '/promotions'
+                        ? 'bg-[#F59E0B]/10 text-[#F59E0B]'
+                        : 'bg-primary/10 text-primary'
                   : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
               }`}
             >
@@ -223,6 +227,14 @@ function GoalsIcon({ active }: { active: boolean }) {
       <circle cx="12" cy="12" r="10" />
       <circle cx="12" cy="12" r="6" />
       <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function PromotionsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#F59E0B' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
     </svg>
   );
 }

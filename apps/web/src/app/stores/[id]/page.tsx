@@ -10,6 +10,7 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
   const lang = i18n.language as 'en' | 'zh';
   const { data: store, loading, error } = useApi<any>(`/stores/${params.id}`);
   const { data: predictions } = useApi<any[]>(`/predictions/store/${params.id}`);
+  const { data: storePromos } = useApi<any[]>(`/promotions/store/${params.id}`);
 
   const statusDotColor: Record<string, string> = {
     in_stock: 'bg-success',
@@ -172,6 +173,52 @@ export default function StoreDetailPage({ params }: { params: { id: string } }) 
             </div>
           )}
         </div>
+      </div>
+
+      {/* Promotions at This Store */}
+      <div className="mt-8">
+        <h2 className="section-label mb-3">{t('storePromotions')}</h2>
+        {storePromos && storePromos.length > 0 ? (
+          <div className="space-y-2">
+            {storePromos.map((promo: any) => (
+              <div key={promo.id} className="glass-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="badge-pill text-warning bg-warning/15">
+                    {t('activePromotions')}
+                  </span>
+                  {promo.product_name ? (
+                    <span className="text-muted text-xs">
+                      {lang === 'zh' ? promo.product_name_zh || promo.product_name : promo.product_name}
+                    </span>
+                  ) : (
+                    <span className="text-muted text-xs">{t('promoCompanyWide')}</span>
+                  )}
+                  <span className="ml-auto text-warning text-xs font-medium">
+                    {promo.days_remaining} {t('daysLeft')}
+                  </span>
+                </div>
+                <div className="text-white text-sm font-medium">
+                  {lang === 'zh' ? promo.title_zh || promo.title : promo.title}
+                </div>
+                <div className="text-slate-400 text-xs mt-1">
+                  {lang === 'zh' ? promo.description_zh || promo.description : promo.description}
+                </div>
+                {(promo.display_instructions || promo.display_instructions_zh) && (
+                  <div className="mt-2 rounded-lg bg-warning/[0.06] border border-warning/[0.12] p-3">
+                    <div className="text-warning text-xs font-semibold mb-1">{t('displayInstructions')}</div>
+                    <div className="text-slate-300 text-xs">
+                      {lang === 'zh' ? promo.display_instructions_zh || promo.display_instructions : promo.display_instructions}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="glass-card p-4 text-center text-muted text-sm">
+            {t('noActivePromotions')}
+          </div>
+        )}
       </div>
 
       {/* Predictions Section */}

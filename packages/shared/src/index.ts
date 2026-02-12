@@ -7,6 +7,7 @@ export * from './types/ai';
 export * from './types/notification';
 export * from './types/checklist';
 export * from './types/goal';
+export * from './types/promotion';
 export * from './constants/tiers';
 export * from './constants/status';
 export * from './constants/design';

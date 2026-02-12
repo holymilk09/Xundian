@@ -175,6 +175,30 @@ async function seed() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_monthly_goals_month ON monthly_goals(company_id, month)`);
     console.log('  Sprint 3 tables created (monthly_goals, goal_progress, visit_integrity_flags)');
 
+    // Promotions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID NOT NULL REFERENCES companies(id),
+        product_id UUID REFERENCES products(id),
+        title TEXT NOT NULL,
+        title_zh TEXT,
+        description TEXT NOT NULL,
+        description_zh TEXT,
+        display_instructions TEXT,
+        display_instructions_zh TEXT,
+        target_tiers TEXT[] NOT NULL DEFAULT '{A,B,C}',
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by UUID REFERENCES employees(id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_promotions_company ON promotions(company_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_promotions_active ON promotions(company_id, is_active, start_date, end_date)`);
+    console.log('  Promotions table created');
+
     // Sprint 1 migration: add store onboarding columns
     await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS discovered_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE stores ADD COLUMN IF NOT EXISTS storefront_photo_url TEXT`);
@@ -521,6 +545,69 @@ async function seed() {
       }
       console.log(`  Created ${inventoryPredictions.length} inventory predictions`);
     }
+
+    // 7c. Seed promotions
+    const promoProductRows = await client.query(
+      `SELECT id, name FROM products WHERE company_id = $1`,
+      [companyId],
+    );
+    const promoProducts = promoProductRows.rows as { id: string; name: string }[];
+
+    const doubanjiangId = promoProducts.find(p => p.name.includes('Doubanjiang'))?.id || null;
+    const hotpotBaseId = promoProducts.find(p => p.name.includes('Hotpot'))?.id || null;
+    const pepperOilId = promoProducts.find(p => p.name.includes('Pepper Oil'))?.id || null;
+    const soySauceId = promoProducts.find(p => p.name.includes('Soy Sauce'))?.id || null;
+
+    const promotions = [
+      {
+        product_id: doubanjiangId,
+        title: 'Spring Festival Doubanjiang Promo',
+        title_zh: '春节豆瓣酱促销',
+        description: 'Buy 2 get 1 free on all Doubanjiang 500g',
+        description_zh: '豆瓣酱500克 买二送一',
+        display_instructions: '3 facings at eye level, red Spring Festival banner required',
+        display_instructions_zh: '眼平位置3个陈列面，需挂春节红色横幅',
+        target_tiers: ['A', 'B', 'C'],
+        start_date: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end_date: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        created_by: employees[1]!.id,
+      },
+      {
+        product_id: hotpotBaseId,
+        title: 'Hotpot Season Bundle',
+        title_zh: '火锅季组合优惠',
+        description: '30% off hotpot base when purchased with pepper oil',
+        description_zh: '火锅底料搭配花椒油享7折优惠',
+        display_instructions: 'End-cap display with hotpot base + pepper oil bundle, yellow price tag',
+        display_instructions_zh: '端架陈列火锅底料+花椒油组合装，使用黄色特价签',
+        target_tiers: ['A', 'B'],
+        start_date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end_date: new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        created_by: employees[1]!.id,
+      },
+      {
+        product_id: soySauceId,
+        title: 'Premium Soy Sauce Tasting',
+        title_zh: '特级酱油试饮活动',
+        description: 'Free tasting sample of Premium Soy Sauce 500ml',
+        description_zh: '特级酱油500毫升免费试用装',
+        display_instructions: 'Tasting station at store entrance, 2 facing minimum',
+        display_instructions_zh: '门店入口设试饮台，至少2个陈列面',
+        target_tiers: ['A'],
+        start_date: new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end_date: new Date(now.getTime() + 24 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        created_by: employees[1]!.id,
+      },
+    ];
+
+    for (const promo of promotions) {
+      await client.query(
+        `INSERT INTO promotions (company_id, product_id, title, title_zh, description, description_zh, display_instructions, display_instructions_zh, target_tiers, start_date, end_date, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [companyId, promo.product_id, promo.title, promo.title_zh, promo.description, promo.description_zh, promo.display_instructions, promo.display_instructions_zh, promo.target_tiers, promo.start_date, promo.end_date, promo.created_by],
+      );
+    }
+    console.log(`  Created ${promotions.length} promotions`);
 
     // 8. Create additional visits for visit-trends chart (spread over 14 days)
     const additionalVisits = [];

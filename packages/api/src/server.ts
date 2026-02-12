@@ -27,6 +27,7 @@ import { goalRoutes } from './routes/goals.js';
 import { integrityRoutes } from './routes/integrity.js';
 import { reportRoutes } from './routes/reports.js';
 import { exportRoutes } from './routes/export.js';
+import { promotionRoutes } from './routes/promotions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -92,6 +93,7 @@ await app.register(goalRoutes, { prefix: '/goals' });
 await app.register(integrityRoutes, { prefix: '/integrity' });
 await app.register(reportRoutes, { prefix: '/reports' });
 await app.register(exportRoutes, { prefix: '/export' });
+await app.register(promotionRoutes, { prefix: '/promotions' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3000', 10);

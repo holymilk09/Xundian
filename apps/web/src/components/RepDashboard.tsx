@@ -20,6 +20,39 @@ const priorityColors: Record<string, string> = {
   low: '#6B7280',
 };
 
+function ActivePromosCard() {
+  const { t } = useTranslation();
+  const { data: promos } = useApi<any[]>('/promotions/active');
+  const count = promos?.length ?? 0;
+
+  return (
+    <Link
+      href="/promotions"
+      className="block rounded-2xl p-4 mb-6 transition-colors hover:bg-white/[0.06]"
+      style={{
+        background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))',
+        border: '1px solid rgba(245,158,11,0.15)',
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-warning/15">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <div className="text-white text-sm font-semibold">{t('activePromotions')}</div>
+          <div className="text-slate-400 text-xs mt-0.5">
+            {count} {count === 1 ? 'promotion' : 'promotions'}
+          </div>
+        </div>
+        <div className="text-warning text-lg font-bold">{count}</div>
+        <div className="text-slate-600 text-lg">›</div>
+      </div>
+    </Link>
+  );
+}
+
 export default function RepDashboard() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
@@ -75,6 +108,9 @@ export default function RepDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Active Promotions Card */}
+      <ActivePromosCard />
 
       {/* Today's Route Card */}
       <div
