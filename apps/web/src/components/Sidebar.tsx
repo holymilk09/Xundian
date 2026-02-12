@@ -16,6 +16,7 @@ const managerNav: NavItem[] = [
   { href: '/dashboard', icon: DashboardIcon, labelKey: 'dashboard' },
   { href: '/stores', icon: StoreIcon, labelKey: 'stores' },
   { href: '/store-map', icon: MapIcon, labelKey: 'storeMap' },
+  { href: '/route-planner', icon: RouteIcon, labelKey: 'routePlanner' },
   { href: '/employees', icon: EmployeesIcon, labelKey: 'employees' },
   { href: '/shelf-diff', icon: ShelfDiffIcon, labelKey: 'shelfDiff' },
   { href: '/checklists', icon: ChecklistIcon, labelKey: 'checklists' },
@@ -29,6 +30,7 @@ const managerNav: NavItem[] = [
 const repNav: NavItem[] = [
   { href: '/dashboard', icon: DashboardIcon, labelKey: 'dashboard' },
   { href: '/stores', icon: StoreIcon, labelKey: 'stores' },
+  { href: '/route-planner', icon: RouteIcon, labelKey: 'routePlanner' },
   { href: '/goals', icon: GoalsIcon, labelKey: 'myGoals' },
   { href: '/alerts', icon: AlertsIcon, labelKey: 'alerts' },
   { href: '/profile', icon: ProfileIcon, labelKey: 'profile' },
@@ -241,6 +243,16 @@ function ReportsIcon({ active }: { active: boolean }) {
       <polyline points="14,2 14,8 20,8" />
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+}
+
+function RouteIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3B82F6' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="19" r="3" />
+      <path d="M9 19h8.5a3.5 3.5 0 000-7h-11a3.5 3.5 0 010-7H15" />
+      <circle cx="18" cy="5" r="3" />
     </svg>
   );
 }

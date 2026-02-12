@@ -131,6 +131,30 @@ export async function routeRoutes(app: FastifyInstance) {
     },
   );
 
+  // GET /routes/team/today — manager view of all reps' routes for today
+  app.get(
+    '/team/today',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const role = request.employee.role;
+      if (!['admin', 'area_manager', 'regional_director'].includes(role)) {
+        return reply.code(403).send({ success: false, error: 'Manager access required' });
+      }
+
+      const companyId = request.companyId;
+
+      const result = await pool.query(
+        `SELECT dr.*, e.name as employee_name
+         FROM daily_routes dr
+         JOIN employees e ON e.id = dr.employee_id
+         WHERE dr.company_id = $1 AND dr.date = CURRENT_DATE
+         ORDER BY e.name`,
+        [companyId],
+      );
+
+      return reply.send({ success: true, data: result.rows });
+    },
+  );
+
   // PATCH /routes/:id/waypoints/:sequence — mark a waypoint as visited
   app.patch<{ Params: WaypointParams }>(
     '/:id/waypoints/:sequence',

@@ -1,9 +1,11 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import StoreTable from '@/components/StoreTable';
 import { useApi } from '@/lib/hooks';
+import api from '@/lib/api';
 import { getUser } from '@/lib/auth';
 import type { StoreTier, StoreType } from '@xundian/shared';
 
@@ -20,6 +22,26 @@ export default function StoresPage() {
   const user = getUser();
   const isManager = user?.role !== 'rep';
   const { data, loading, error } = useApi<any[]>('/stores?limit=100');
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/export/stores', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `stores-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // error handled silently
+    } finally {
+      setExporting(false);
+    }
+  }, []);
 
   const stores = (data || []).map((item: any) => ({
     id: item.id,
@@ -37,6 +59,15 @@ export default function StoresPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">{t('stores')}</h1>
         <div className="flex gap-3">
+          {isManager && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="px-4 py-2 rounded-lg bg-white/[0.06] text-slate-300 text-sm font-medium hover:bg-white/[0.1] transition-colors disabled:opacity-50"
+            >
+              {exporting ? t('exporting') : t('exportStores')}
+            </button>
+          )}
           <Link
             href="/stores/discover"
             className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"

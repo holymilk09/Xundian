@@ -106,6 +106,27 @@ export default function ReportsPage() {
     }
   }, [currentWeek]);
 
+  const handleExportExcel = useCallback(async () => {
+    setExporting('excel');
+    try {
+      const res = await api.get(`/export/visits?start_date=${currentWeek}`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `visits-export-${currentWeek}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // error handled silently
+    } finally {
+      setExporting(null);
+    }
+  }, [currentWeek]);
+
   // Non-manager view
   if (!isManager) {
     return (
@@ -142,11 +163,11 @@ export default function ReportsPage() {
             {exporting === 'csv' ? t('exporting') : t('exportCSV')}
           </button>
           <button
-            disabled
-            className="bg-white/[0.06] text-slate-500 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed"
-            title="Coming soon"
+            onClick={handleExportExcel}
+            disabled={exporting === 'excel' || !report}
+            className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {t('exportExcel')}
+            {exporting === 'excel' ? t('exporting') : t('exportExcel')}
           </button>
           <button
             disabled

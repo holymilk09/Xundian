@@ -1,3 +1,5 @@
+export type RoutePriority = 'overdue' | 'due_today' | 'high_value_nearby';
+
 export interface RouteWaypoint {
   store_id: string;
   store_name: string;
@@ -5,6 +7,7 @@ export interface RouteWaypoint {
   latitude: number;
   longitude: number;
   tier?: string;
+  priority?: RoutePriority;
   estimated_arrival: string;
   estimated_duration_minutes: number;
   sequence: number;

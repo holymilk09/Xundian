@@ -1,5 +1,5 @@
 import pool from '../db/pool.js';
-import type { RouteWaypoint } from '@xundian/shared';
+import type { RouteWaypoint, RoutePriority } from '@xundian/shared';
 
 /**
  * Calculate the Haversine distance between two points in kilometers.
@@ -135,6 +135,16 @@ const TIER_DURATION: Record<string, number> = {
 /** Average travel speed in km/h */
 const AVG_SPEED_KMH = 25;
 
+/** Priority weight multipliers for distance matrix */
+const PRIORITY_WEIGHTS: Record<RoutePriority, number> = {
+  overdue: 0.5,
+  due_today: 0.8,
+  high_value_nearby: 1.2,
+};
+
+/** Max stores per day */
+const MAX_STORES_PER_DAY = 20;
+
 interface StorePoint {
   store_id: string;
   name: string;
@@ -142,6 +152,8 @@ interface StorePoint {
   tier: string;
   lat: number;
   lng: number;
+  priority: RoutePriority;
+  days_overdue?: number;
 }
 
 export interface OptimizeRouteResult {
@@ -151,15 +163,19 @@ export interface OptimizeRouteResult {
 }
 
 /**
- * Main route optimization function.
+ * Main route optimization function with priority buckets.
  *
- * 1. If no storeIds: query uncompleted revisit_schedule for this employee
- *    + stores overdue based on company tier_config
- * 2. Fetch store locations/names/tiers from DB
- * 3. Estimate duration per tier: A=30min, B=20min, C=15min
- * 4. Build matrix (index 0 = start location), run nearest-neighbor, apply 2-opt
- * 5. Calculate arrival times assuming 25 km/h avg speed
- * 6. Return waypoints, total_distance_km, estimated_duration_minutes
+ * Priority buckets (filled in order, capped at MAX_STORES_PER_DAY):
+ * 1. OVERDUE — revisit_schedule past due + stores past tier window (sorted by days overdue DESC)
+ * 2. DUE TODAY — revisit_schedule for today
+ * 3. HIGH VALUE NEARBY — A-tier stores within 10km not visited in 3 days
+ *
+ * Applies priority weights to distance matrix for TSP:
+ * - Overdue: 0.5x (appear closer → visited earlier)
+ * - Due today: 0.8x
+ * - High value nearby: 1.2x (slight penalty)
+ *
+ * Uses unweighted matrix for final distance/time calculations.
  */
 export async function optimizeRoute(
   companyId: string,
@@ -172,7 +188,7 @@ export async function optimizeRoute(
   let stores: StorePoint[];
 
   if (storeIds && storeIds.length > 0) {
-    // Fetch specific stores
+    // Fetch specific stores (no priority buckets)
     const result = await pool.query(
       `SELECT s.id as store_id, s.name, s.name_zh, s.tier,
               ST_Y(s.location) as lat, ST_X(s.location) as lng
@@ -187,35 +203,108 @@ export async function optimizeRoute(
       tier: r.tier as string,
       lat: parseFloat(r.lat as string),
       lng: parseFloat(r.lng as string),
+      priority: 'due_today' as RoutePriority,
     }));
   } else {
-    // Get stores from uncompleted revisit schedules assigned to this employee
-    const scheduledResult = await pool.query(
-      `SELECT DISTINCT s.id as store_id, s.name, s.name_zh, s.tier,
-              ST_Y(s.location) as lat, ST_X(s.location) as lng
-       FROM revisit_schedule rs
-       JOIN stores s ON s.id = rs.store_id
-       WHERE rs.company_id = $1
-         AND rs.assigned_to = $2
-         AND NOT rs.completed
-         AND rs.next_visit_date <= $3::date`,
-      [companyId, employeeId, date],
-    );
-
-    // Also get stores overdue based on tier_config (not visited within their tier window)
+    // Get tier config
     const tierConfigResult = await pool.query(
       `SELECT tier_config FROM companies WHERE id = $1`,
       [companyId],
     );
-
     const tierConfig = tierConfigResult.rows[0]?.tier_config || {
       A: { revisit_days: 7 },
       B: { revisit_days: 14 },
       C: { revisit_days: 30 },
     };
 
+    // BUCKET 1: OVERDUE — revisit_schedule past due + stores past tier window
     const overdueResult = await pool.query(
+      `SELECT DISTINCT ON (s.id)
+              s.id as store_id, s.name, s.name_zh, s.tier,
+              ST_Y(s.location) as lat, ST_X(s.location) as lng,
+              GREATEST(
+                COALESCE(($4::date - rs.next_visit_date), 0),
+                COALESCE(
+                  EXTRACT(DAY FROM NOW() - lv.checked_in_at) -
+                  CASE s.tier
+                    WHEN 'A' THEN $5::int
+                    WHEN 'B' THEN $6::int
+                    WHEN 'C' THEN $7::int
+                    ELSE 30
+                  END,
+                  0
+                )
+              ) AS days_overdue
+       FROM stores s
+       LEFT JOIN revisit_schedule rs ON rs.store_id = s.id
+         AND rs.company_id = s.company_id
+         AND NOT rs.completed
+         AND rs.next_visit_date < $4::date
+       LEFT JOIN LATERAL (
+         SELECT v.checked_in_at
+         FROM visits v
+         WHERE v.store_id = s.id AND v.company_id = s.company_id
+         ORDER BY v.checked_in_at DESC LIMIT 1
+       ) lv ON true
+       WHERE s.company_id = $1
+         AND (
+           (rs.id IS NOT NULL)
+           OR (
+             (s.tier = 'A' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($5::int || ' days')::interval))
+             OR (s.tier = 'B' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($6::int || ' days')::interval))
+             OR (s.tier = 'C' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($7::int || ' days')::interval))
+           )
+         )
+       ORDER BY s.id, days_overdue DESC`,
+      [
+        companyId,
+        employeeId,
+        date,
+        date,
+        tierConfig.A?.revisit_days || 7,
+        tierConfig.B?.revisit_days || 14,
+        tierConfig.C?.revisit_days || 30,
+      ],
+    );
+
+    const overdueStores: StorePoint[] = overdueResult.rows
+      .map((r: Record<string, unknown>) => ({
+        store_id: r.store_id as string,
+        name: r.name as string,
+        name_zh: r.name_zh as string | null,
+        tier: r.tier as string,
+        lat: parseFloat(r.lat as string),
+        lng: parseFloat(r.lng as string),
+        priority: 'overdue' as RoutePriority,
+        days_overdue: Math.max(0, parseFloat(String(r.days_overdue || 0))),
+      }))
+      .sort((a, b) => (b.days_overdue || 0) - (a.days_overdue || 0));
+
+    // BUCKET 2: DUE TODAY — revisit_schedule for today
+    const dueTodayResult = await pool.query(
       `SELECT DISTINCT s.id as store_id, s.name, s.name_zh, s.tier,
+              ST_Y(s.location) as lat, ST_X(s.location) as lng
+       FROM revisit_schedule rs
+       JOIN stores s ON s.id = rs.store_id
+       WHERE rs.company_id = $1
+         AND NOT rs.completed
+         AND rs.next_visit_date = $2::date`,
+      [companyId, date],
+    );
+
+    const dueTodayStores: StorePoint[] = dueTodayResult.rows.map((r: Record<string, unknown>) => ({
+      store_id: r.store_id as string,
+      name: r.name as string,
+      name_zh: r.name_zh as string | null,
+      tier: r.tier as string,
+      lat: parseFloat(r.lat as string),
+      lng: parseFloat(r.lng as string),
+      priority: 'due_today' as RoutePriority,
+    }));
+
+    // BUCKET 3: HIGH VALUE NEARBY — A-tier within 10km, not visited in 3 days
+    const highValueResult = await pool.query(
+      `SELECT s.id as store_id, s.name, s.name_zh, s.tier,
               ST_Y(s.location) as lat, ST_X(s.location) as lng
        FROM stores s
        LEFT JOIN LATERAL (
@@ -225,33 +314,44 @@ export async function optimizeRoute(
          ORDER BY v.checked_in_at DESC LIMIT 1
        ) lv ON true
        WHERE s.company_id = $1
-         AND (
-           (s.tier = 'A' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($2::int || ' days')::interval))
-           OR (s.tier = 'B' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($3::int || ' days')::interval))
-           OR (s.tier = 'C' AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - ($4::int || ' days')::interval))
-         )`,
-      [
-        companyId,
-        tierConfig.A?.revisit_days || 7,
-        tierConfig.B?.revisit_days || 14,
-        tierConfig.C?.revisit_days || 30,
-      ],
+         AND s.tier = 'A'
+         AND ST_DWithin(s.location::geography, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, 10000)
+         AND (lv.checked_in_at IS NULL OR lv.checked_in_at < NOW() - interval '3 days')`,
+      [companyId, startLng, startLat],
     );
 
-    // Merge and deduplicate
+    const highValueStores: StorePoint[] = highValueResult.rows.map((r: Record<string, unknown>) => ({
+      store_id: r.store_id as string,
+      name: r.name as string,
+      name_zh: r.name_zh as string | null,
+      tier: r.tier as string,
+      lat: parseFloat(r.lat as string),
+      lng: parseFloat(r.lng as string),
+      priority: 'high_value_nearby' as RoutePriority,
+    }));
+
+    // Merge and deduplicate: fill from bucket 1 first, then 2, then 3
     const storeMap = new Map<string, StorePoint>();
-    for (const row of [...scheduledResult.rows, ...overdueResult.rows]) {
-      if (!storeMap.has(row.store_id as string)) {
-        storeMap.set(row.store_id as string, {
-          store_id: row.store_id as string,
-          name: row.name as string,
-          name_zh: row.name_zh as string | null,
-          tier: row.tier as string,
-          lat: parseFloat(row.lat as string),
-          lng: parseFloat(row.lng as string),
-        });
+
+    for (const store of overdueStores) {
+      if (storeMap.size >= MAX_STORES_PER_DAY) break;
+      if (!storeMap.has(store.store_id)) {
+        storeMap.set(store.store_id, store);
       }
     }
+    for (const store of dueTodayStores) {
+      if (storeMap.size >= MAX_STORES_PER_DAY) break;
+      if (!storeMap.has(store.store_id)) {
+        storeMap.set(store.store_id, store);
+      }
+    }
+    for (const store of highValueStores) {
+      if (storeMap.size >= MAX_STORES_PER_DAY) break;
+      if (!storeMap.has(store.store_id)) {
+        storeMap.set(store.store_id, store);
+      }
+    }
+
     stores = Array.from(storeMap.values());
   }
 
@@ -270,22 +370,34 @@ export async function optimizeRoute(
     ...stores.map((s) => ({ lat: s.lat, lng: s.lng })),
   ];
 
-  // Build distance matrix
-  const matrix = buildDistanceMatrix(points);
+  // Build unweighted distance matrix (for final calculations)
+  const realMatrix = buildDistanceMatrix(points);
 
-  // Run nearest-neighbor starting from index 0 (rep's position)
-  let tour = nearestNeighbor(matrix, 0);
+  // Build weighted distance matrix (for TSP optimization)
+  const weightedMatrix = realMatrix.map((row, i) =>
+    row.map((dist, j) => {
+      if (j === 0 || i === 0) return dist; // don't weight start point
+      const storeIndex = j - 1;
+      const store = stores[storeIndex];
+      if (!store) return dist;
+      const weight = PRIORITY_WEIGHTS[store.priority] || 1.0;
+      return dist * weight;
+    }),
+  );
 
-  // Improve with 2-opt
-  tour = twoOpt(matrix, tour);
+  // Run nearest-neighbor on weighted matrix starting from index 0
+  let tour = nearestNeighbor(weightedMatrix, 0);
 
-  // Calculate total distance (only store-to-store segments, skip start point for return)
+  // Improve with 2-opt on weighted matrix
+  tour = twoOpt(weightedMatrix, tour);
+
+  // Calculate total distance using REAL (unweighted) matrix
   let totalDistanceKm = 0;
   for (let i = 0; i < tour.length - 1; i++) {
-    totalDistanceKm += matrix[tour[i]!]![tour[i + 1]!]!;
+    totalDistanceKm += realMatrix[tour[i]!]![tour[i + 1]!]!;
   }
 
-  // Build waypoints with arrival time estimates
+  // Build waypoints with arrival time estimates using real distances
   const waypoints: RouteWaypoint[] = [];
   let cumulativeMinutes = 0;
   const baseTime = new Date(`${date}T08:00:00`); // Assume 8 AM start
@@ -294,8 +406,8 @@ export async function optimizeRoute(
     const storeIndex = tour[i]! - 1; // Subtract 1 because index 0 is start location
     const store = stores[storeIndex]!;
 
-    // Travel time from previous point
-    const travelDistKm = matrix[tour[i - 1]!]![tour[i]!]!;
+    // Travel time from previous point (using real distances)
+    const travelDistKm = realMatrix[tour[i - 1]!]![tour[i]!]!;
     const travelMinutes = (travelDistKm / AVG_SPEED_KMH) * 60;
     cumulativeMinutes += travelMinutes;
 
@@ -309,6 +421,7 @@ export async function optimizeRoute(
       latitude: store.lat,
       longitude: store.lng,
       tier: store.tier,
+      priority: store.priority,
       estimated_arrival: arrivalTime.toISOString(),
       estimated_duration_minutes: durationMinutes,
       sequence: i,

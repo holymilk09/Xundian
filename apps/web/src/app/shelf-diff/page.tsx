@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
+import api from '@/lib/api';
+import { getUser } from '@/lib/auth';
 import TierBadge from '@/components/TierBadge';
 import type { StoreTier, ShelfDiffSeverity } from '@xundian/shared';
 
@@ -37,9 +39,34 @@ const severityColors: Record<ShelfDiffSeverity, { bg: string; text: string; labe
 export default function ShelfDiffPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
+  const user = getUser();
+  const isManager =
+    user?.role === 'admin' ||
+    user?.role === 'area_manager' ||
+    user?.role === 'regional_director';
   const { data, loading, error } = useApi<ShelfDiffItem[]>('/shelf-diffs');
   const [severityFilter, setSeverityFilter] = useState<ShelfDiffSeverity | 'all'>('all');
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewed' | 'unreviewed'>('all');
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/export/shelf-analysis', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `shelf-analysis-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // error handled silently
+    } finally {
+      setExporting(false);
+    }
+  }, []);
 
   const items = data || [];
   const filtered = items.filter((item) => {
@@ -54,9 +81,20 @@ export default function ShelfDiffPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">{t('shelfComparisons')}</h1>
-        <p className="text-muted text-sm mt-1">{t('shelfDiffSubtitle')}</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">{t('shelfComparisons')}</h1>
+          <p className="text-muted text-sm mt-1">{t('shelfDiffSubtitle')}</p>
+        </div>
+        {isManager && (
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {exporting ? t('exporting') : t('exportShelfData')}
+          </button>
+        )}
       </div>
 
       {loading && <p className="text-slate-400">Loading...</p>}

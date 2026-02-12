@@ -6,6 +6,29 @@ import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
 import { getUser } from '@/lib/auth';
 
+function useExportCSV(endpoint: string, filename: string) {
+  const [exporting, setExporting] = useState(false);
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await api.get(endpoint, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // error handled silently
+    } finally {
+      setExporting(false);
+    }
+  }, [endpoint, filename]);
+  return { exporting, handleExport };
+}
+
 const FLAG_TYPES = [
   'gps_too_far',
   'gps_accuracy_low',
@@ -59,6 +82,10 @@ export default function IntegrityPage() {
   const [severityFilter, setSeverityFilter] = useState('');
   const [flagTypeFilter, setFlagTypeFilter] = useState('');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const { exporting: exportingFlags, handleExport: handleExportFlags } = useExportCSV(
+    '/export/integrity',
+    `integrity-flags-${new Date().toISOString().split('T')[0]}.csv`,
+  );
 
   const resolvedParam = tab === 'resolved' ? 'true' : 'false';
   const severityParam = severityFilter ? `&severity=${severityFilter}` : '';
@@ -99,9 +126,18 @@ export default function IntegrityPage() {
   return (
     <div className="max-w-6xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">{t('visitIntegrity')}</h1>
-        <p className="text-muted text-sm mt-1">{t('integritySubtitle')}</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">{t('visitIntegrity')}</h1>
+          <p className="text-muted text-sm mt-1">{t('integritySubtitle')}</p>
+        </div>
+        <button
+          onClick={handleExportFlags}
+          disabled={exportingFlags}
+          className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          {exportingFlags ? t('exporting') : t('exportFlags')}
+        </button>
       </div>
 
       {/* Summary Cards */}

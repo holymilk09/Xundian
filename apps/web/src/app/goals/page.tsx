@@ -79,6 +79,26 @@ export default function GoalsPage() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [exportingCSV, setExportingCSV] = useState(false);
+
+  const handleExportGoals = useCallback(async () => {
+    setExportingCSV(true);
+    try {
+      const res = await api.get(`/export/goals?month=${getCurrentMonth()}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `goals-${getCurrentMonth()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // error handled silently
+    } finally {
+      setExportingCSV(false);
+    }
+  }, []);
 
   const addGoal = () => {
     setGoals([...goals, { metric: 'visits_target', target: 0, label: '' }]);
@@ -152,6 +172,15 @@ export default function GoalsPage() {
           )}
         </div>
         <div className="flex gap-2">
+          {isManager && (
+            <button
+              onClick={handleExportGoals}
+              disabled={exportingCSV}
+              className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {exportingCSV ? t('exporting') : t('exportGoals')}
+            </button>
+          )}
           {isManager && !showForm && (
             <button
               onClick={() => setShowForm(true)}
