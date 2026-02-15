@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import TierBadge from '@/components/TierBadge';
+import { STATUS_COLORS } from '@/lib/constants';
 import type { StoreTier } from '@xundian/shared';
 
 interface MapStore {
@@ -31,12 +32,7 @@ function deriveStatus(store: MapStore): StoreStatus {
   return 'visited';
 }
 
-const statusColors: Record<StoreStatus, string> = {
-  visited: '#10B981',
-  overdue: '#EF4444',
-  pending: '#3B82F6',
-  discovered: '#8B5CF6',
-};
+const statusColors = STATUS_COLORS as Record<StoreStatus, string>;
 
 // Chengdu bounds for SVG projection
 const LAT_MIN = 30.52;
@@ -237,7 +233,7 @@ export default function StoreMapPage() {
               </div>
             ) : (
               <div className="glass-card p-4 text-center text-muted text-sm">
-                {lang === 'zh' ? '点击门店查看详情' : 'Click a store pin to view details'}
+                {t('clickStorePin')}
               </div>
             )}
           </div>

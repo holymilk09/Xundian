@@ -361,5 +361,12 @@
   "savePromotion": "Save Promotion",
   "promotionDeactivated": "Promotion deactivated",
   "upcoming": "Upcoming",
-  "expired": "Expired"
+  "expired": "Expired",
+  "operationFailed": "Operation failed",
+  "noResolvedFlags": "No resolved flags",
+  "notLoggedIn": "Not logged in",
+  "clickStorePin": "Click a store pin to view details",
+  "contactName": "Contact name",
+  "phonePlaceholder": "138xxxxxxxx",
+  "nearbyStoresCount": "Found {{count}} unvisited stores within {{radius}}km"
 }

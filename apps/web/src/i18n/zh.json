@@ -361,5 +361,12 @@
   "savePromotion": "保存促销",
   "promotionDeactivated": "促销已停用",
   "upcoming": "即将开始",
-  "expired": "已结束"
+  "expired": "已结束",
+  "operationFailed": "操作失败",
+  "noResolvedFlags": "没有已解决的标记",
+  "notLoggedIn": "未登录",
+  "clickStorePin": "点击门店查看详情",
+  "contactName": "联系人姓名",
+  "phonePlaceholder": "138xxxxxxxx",
+  "nearbyStoresCount": "{{radius}}公里内发现{{count}}家未巡检门店"
 }

@@ -102,11 +102,20 @@ export async function checklistRoutes(app: FastifyInstance) {
         });
       }
 
+      const validTiers = ['A', 'B', 'C'];
+      const sanitizedTiers = assigned_tiers.filter((t: string) => validTiers.includes(t));
+      if (sanitizedTiers.length === 0) {
+        return reply.code(400).send({
+          success: false,
+          error: 'assigned_tiers must contain valid tier values (A, B, C)',
+        });
+      }
+
       const result = await pool.query(
         `INSERT INTO checklist_templates (company_id, name, name_zh, items, assigned_tiers, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [companyId, name, name_zh || null, JSON.stringify(items), assigned_tiers, request.employee.id],
+        [companyId, name, name_zh || null, JSON.stringify(items), sanitizedTiers, request.employee.id],
       );
 
       return reply.code(201).send({ success: true, data: result.rows[0] });
@@ -190,6 +199,11 @@ export async function checklistRoutes(app: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { tier: string } }>, reply: FastifyReply) => {
       const companyId = request.companyId;
       const tier = request.params.tier;
+
+      const validTiers = ['A', 'B', 'C'];
+      if (tier && !validTiers.includes(tier)) {
+        return reply.status(400).send({ success: false, error: 'Invalid tier value' });
+      }
 
       const result = await pool.query(
         `SELECT id, name, name_zh, items, assigned_tiers

@@ -115,7 +115,7 @@ export default function ChecklistsPage() {
       resetForm();
       refetch();
     } catch {
-      // error
+      alert(t('operationFailed'));
     } finally {
       setSaving(false);
     }
@@ -126,18 +126,18 @@ export default function ChecklistsPage() {
       await api.delete(`/checklists/templates/${id}`);
       refetch();
     } catch {
-      // error
+      alert(t('operationFailed'));
     }
-  }, [refetch]);
+  }, [refetch, t]);
 
   const handleToggleActive = useCallback(async (id: string, currentActive: boolean) => {
     try {
       await api.put(`/checklists/templates/${id}`, { is_active: !currentActive });
       refetch();
     } catch {
-      // error
+      alert(t('operationFailed'));
     }
-  }, [refetch]);
+  }, [refetch, t]);
 
   const allTemplates = templates || [];
 

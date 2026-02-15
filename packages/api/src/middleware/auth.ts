@@ -14,6 +14,9 @@ declare module 'fastify' {
   }
 }
 
+// NOTE: /ai/webhook skips authentication by design — the on-prem AI inference
+// server calls this endpoint to push shelf analysis results. In production,
+// this should be secured with an API key or HMAC signature verification.
 const SKIP_AUTH_PREFIXES = ['/auth/', '/health', '/ai/webhook'];
 
 function shouldSkipAuth(url: string): boolean {

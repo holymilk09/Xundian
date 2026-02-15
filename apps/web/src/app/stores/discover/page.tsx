@@ -209,7 +209,7 @@ export default function DiscoverStorePage() {
                 type="text"
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
-                placeholder="Contact name"
+                placeholder={t('contactName')}
                 className="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary"
               />
             </div>
@@ -219,7 +219,7 @@ export default function DiscoverStorePage() {
                 type="text"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="138xxxxxxxx"
+                placeholder={t('phonePlaceholder')}
                 className="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary"
               />
             </div>

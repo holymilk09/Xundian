@@ -19,7 +19,7 @@ export default function ProfilePage() {
     return (
       <div className="max-w-md">
         <h1 className="text-2xl font-bold text-white mb-6">{t('profileTitle')}</h1>
-        <p className="text-slate-400">Not logged in</p>
+        <p className="text-slate-400">{t('notLoggedIn')}</p>
       </div>
     );
   }

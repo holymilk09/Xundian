@@ -5,16 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
 import { getUser } from '@/lib/auth';
+import { TIER_COLORS } from '@/lib/constants';
 
 type StatusFilter = 'all' | 'active' | 'upcoming' | 'expired';
 
 const TIERS = ['A', 'B', 'C'] as const;
-
-const tierColors: Record<string, string> = {
-  A: '#DC2626',
-  B: '#F59E0B',
-  C: '#6B7280',
-};
 
 const statusColors: Record<string, { bg: string; text: string }> = {
   active: { bg: 'bg-warning/15', text: 'text-warning' },
@@ -107,7 +102,7 @@ export default function PromotionsPage() {
       resetForm();
       refetch();
     } catch {
-      // error silently
+      alert(t('operationFailed'));
     } finally {
       setSaving(false);
     }
@@ -118,9 +113,9 @@ export default function PromotionsPage() {
       await api.delete(`/promotions/${id}`);
       refetch();
     } catch {
-      // error silently
+      alert(t('operationFailed'));
     }
-  }, [refetch]);
+  }, [refetch, t]);
 
   const toggleTier = (tier: string) => {
     setForm(prev => ({
@@ -274,9 +269,9 @@ export default function PromotionsPage() {
                         : 'bg-white/[0.04] text-slate-500 border border-white/[0.08]'
                     }`}
                     style={form.target_tiers.includes(tier) ? {
-                      background: `${tierColors[tier]}22`,
-                      color: tierColors[tier],
-                      border: `1px solid ${tierColors[tier]}44`,
+                      background: `${TIER_COLORS[tier]}22`,
+                      color: TIER_COLORS[tier],
+                      border: `1px solid ${TIER_COLORS[tier]}44`,
                     } : undefined}
                   >
                     {tier}
@@ -354,8 +349,8 @@ export default function PromotionsPage() {
                     key={tier}
                     className="text-[11px] font-bold px-2 py-0.5 rounded-[5px]"
                     style={{
-                      background: `${tierColors[tier] || '#6B7280'}22`,
-                      color: tierColors[tier] || '#6B7280',
+                      background: `${TIER_COLORS[tier] || '#6B7280'}22`,
+                      color: TIER_COLORS[tier] || '#6B7280',
                     }}
                   >
                     {tier}

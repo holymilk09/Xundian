@@ -119,40 +119,41 @@ export async function analyticsRoutes(app: FastifyInstance) {
         C: { revisit_days: 30 },
       };
 
-      // For each tier, count total stores and stores visited within their revisit window
-      const tiers = ['A', 'B', 'C'] as const;
+      const revisitA = tierConfig.A?.revisit_days || 7;
+      const revisitB = tierConfig.B?.revisit_days || 14;
+      const revisitC = tierConfig.C?.revisit_days || 30;
+
+      // Single query with conditional aggregation instead of 6 separate queries
+      const coverageResult = await pool.query(
+        `SELECT s.tier,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE lv.checked_in_at > NOW() - (
+                  CASE s.tier WHEN 'A' THEN $2 WHEN 'B' THEN $3 ELSE $4 END || ' days'
+                )::interval) as covered
+         FROM stores s
+         LEFT JOIN LATERAL (
+           SELECT v.checked_in_at FROM visits v
+           WHERE v.store_id = s.id AND v.company_id = s.company_id
+           ORDER BY v.checked_in_at DESC LIMIT 1
+         ) lv ON true
+         WHERE s.company_id = $1 AND s.tier IN ('A', 'B', 'C')
+         GROUP BY s.tier`,
+        [companyId, revisitA, revisitB, revisitC],
+      );
+
       const coverage: Record<string, { total: number; covered: number; rate: number }> = {};
       let overallTotal = 0;
       let overallCovered = 0;
 
-      for (const tier of tiers) {
-        const revisitDays = tierConfig[tier]?.revisit_days || 30;
-
-        const [totalResult, coveredResult] = await Promise.all([
-          pool.query(
-            'SELECT COUNT(*) FROM stores WHERE company_id = $1 AND tier = $2',
-            [companyId, tier],
-          ),
-          pool.query(
-            `SELECT COUNT(DISTINCT s.id)
-             FROM stores s
-             JOIN visits v ON v.store_id = s.id AND v.company_id = s.company_id
-             WHERE s.company_id = $1
-               AND s.tier = $2
-               AND v.checked_in_at > NOW() - ($3::int || ' days')::interval`,
-            [companyId, tier, revisitDays],
-          ),
-        ]);
-
-        const total = parseInt(totalResult.rows[0]!.count as string, 10);
-        const covered = parseInt(coveredResult.rows[0]!.count as string, 10);
-
+      for (const tier of ['A', 'B', 'C']) {
+        const row = coverageResult.rows.find((r: Record<string, unknown>) => r.tier === tier);
+        const total = row ? parseInt(row.total as string, 10) : 0;
+        const covered = row ? parseInt(row.covered as string, 10) : 0;
         coverage[tier] = {
           total,
           covered,
           rate: total > 0 ? Math.round((covered / total) * 100) : 0,
         };
-
         overallTotal += total;
         overallCovered += covered;
       }

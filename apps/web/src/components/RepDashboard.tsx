@@ -5,14 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Link from 'next/link';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
-
-type StoreTier = 'A' | 'B' | 'C';
-
-const tierColors: Record<StoreTier, string> = {
-  A: '#DC2626',
-  B: '#F59E0B',
-  C: '#6B7280',
-};
+import { TIER_COLORS } from '@/lib/constants';
 
 const priorityColors: Record<string, string> = {
   high: '#EF4444',
@@ -43,7 +36,7 @@ function ActivePromosCard() {
         <div className="flex-1">
           <div className="text-white text-sm font-semibold">{t('activePromotions')}</div>
           <div className="text-slate-400 text-xs mt-0.5">
-            {count} {count === 1 ? 'promotion' : 'promotions'}
+            {count} {t('promotions').toLowerCase()}
           </div>
         </div>
         <div className="text-warning text-lg font-bold">{count}</div>
@@ -68,10 +61,10 @@ export default function RepDashboard() {
   const handleGenerateRoute = async () => {
     setGenerating(true);
     try {
-      await api.post('/routes/optimize', { start_lat: 31.23, start_lng: 121.47 });
+      await api.post('/routes/optimize', { start_lat: 30.57, start_lng: 104.07 });
       await refetchRoute();
     } catch {
-      // silently fail
+      alert(t('operationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -199,9 +192,7 @@ export default function RepDashboard() {
           </div>
         </div>
         <p className="text-slate-400 text-xs">
-          {lang === 'en'
-            ? `Found 23 unvisited stores within ${searchRadius}km`
-            : `${searchRadius}公里内发现23家未巡检门店`}
+          {t('nearbyStoresCount', { count: 23, radius: searchRadius })}
         </p>
       </div>
 
@@ -237,8 +228,8 @@ export default function RepDashboard() {
                   <span
                     className="text-[11px] font-bold px-2 py-0.5 rounded-[5px] shrink-0 ml-2"
                     style={{
-                      background: `${tierColors[alert.tier as StoreTier] || '#6B7280'}22`,
-                      color: tierColors[alert.tier as StoreTier] || '#6B7280',
+                      background: `${TIER_COLORS[alert.tier] || '#6B7280'}22`,
+                      color: TIER_COLORS[alert.tier] || '#6B7280',
                     }}
                   >
                     {alert.tier}
@@ -260,7 +251,7 @@ export default function RepDashboard() {
           </Link>
         ))}
         {!alertsLoading && (!alerts || alerts.length === 0) && (
-          <p className="text-muted text-sm">{lang === 'en' ? 'No revisit reminders' : '暂无巡店提醒'}</p>
+          <p className="text-muted text-sm">{t('noPendingAlerts')}</p>
         )}
       </div>
     </div>

@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { getUser } from '@/lib/auth';
 
 function useExportCSV(endpoint: string, filename: string) {
+  const { t } = useTranslation();
   const [exporting, setExporting] = useState(false);
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -21,11 +22,11 @@ function useExportCSV(endpoint: string, filename: string) {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setExporting(false);
     }
-  }, [endpoint, filename]);
+  }, [endpoint, filename, t]);
   return { exporting, handleExport };
 }
 
@@ -101,11 +102,11 @@ export default function IntegrityPage() {
       await api.post(`/integrity/flags/${id}/resolve`);
       refetchFlags();
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setResolvingId(null);
     }
-  }, [refetchFlags]);
+  }, [refetchFlags, t]);
 
   // Non-manager view
   if (!isManager) {
@@ -240,7 +241,7 @@ export default function IntegrityPage() {
         {!flagsLoading && allFlags.length === 0 && (
           <div className="p-8 text-center">
             <p className="text-muted text-sm">
-              {tab === 'unresolved' ? t('noGoalsSet') : t('noGoalsSet')}
+              {tab === 'unresolved' ? t('noGoalsSet') : t('noResolvedFlags')}
             </p>
           </div>
         )}

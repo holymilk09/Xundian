@@ -65,11 +65,11 @@ export default function RoutePlannerPage() {
       refetchRoute();
       if (isManager) refetchTeam();
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setGenerating(false);
     }
-  }, [refetchRoute, refetchTeam, isManager]);
+  }, [refetchRoute, refetchTeam, isManager, t]);
 
   const route = myRoute;
   const waypoints: RouteWaypoint[] = route?.waypoints || [];

@@ -100,11 +100,11 @@ export default function ReportsPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setExporting(null);
     }
-  }, [currentWeek]);
+  }, [currentWeek, t]);
 
   const handleExportExcel = useCallback(async () => {
     setExporting('excel');
@@ -121,11 +121,11 @@ export default function ReportsPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setExporting(null);
     }
-  }, [currentWeek]);
+  }, [currentWeek, t]);
 
   // Non-manager view
   if (!isManager) {

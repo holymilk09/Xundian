@@ -110,6 +110,10 @@ export async function promotionRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: 'title, description, start_date, and end_date are required' });
       }
 
+      if (new Date(start_date) > new Date(end_date)) {
+        return reply.code(400).send({ success: false, error: 'start_date must be before end_date' });
+      }
+
       const result = await pool.query(
         `INSERT INTO promotions (company_id, product_id, title, title_zh, description, description_zh, display_instructions, display_instructions_zh, target_tiers, start_date, end_date, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)

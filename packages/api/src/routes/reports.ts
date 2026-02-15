@@ -21,6 +21,10 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
+      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
+        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
+      }
+
       const weekStart = request.query.week_start || getMostRecentMonday();
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
@@ -33,6 +37,10 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly/export/csv',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
+      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
+        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
+      }
+
       const weekStart = request.query.week_start || getMostRecentMonday();
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
@@ -50,6 +58,10 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly/export/json',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
+      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
+        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
+      }
+
       const weekStart = request.query.week_start || getMostRecentMonday();
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
@@ -60,6 +72,10 @@ export async function reportRoutes(app: FastifyInstance) {
 
   // GET /reports/history
   app.get('/history', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
+      return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
+    }
+
     const companyId = request.companyId;
     const weeks: Array<{ week_start: string; week_end: string; visit_count: number }> = [];
 

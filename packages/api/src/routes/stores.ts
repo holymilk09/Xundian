@@ -150,14 +150,13 @@ export async function storeRoutes(app: FastifyInstance) {
         });
       }
 
-      // Anti-cheat: duplicate detection (same name prefix within 200m)
-      const namePrefix = name.substring(0, 4);
+      // Anti-cheat: duplicate detection (exact name match within 200m)
       const dupResult = await pool.query(
         `SELECT id, name FROM stores
          WHERE company_id = $1
-           AND name ILIKE $2
+           AND LOWER(name) = LOWER($2)
            AND ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, 200)`,
-        [companyId, `${namePrefix}%`, latitude, longitude],
+        [companyId, name, latitude, longitude],
       );
 
       if (dupResult.rows.length > 0) {
@@ -282,8 +281,8 @@ export async function storeRoutes(app: FastifyInstance) {
           (store.discovered_by as string) || request.employee.id,
           'in_stock',
         );
-      } catch {
-        // Non-fatal: revisit scheduling is best-effort
+      } catch (err) {
+        app.log.warn({ err }, 'Revisit schedule failed for approved store');
       }
 
       return reply.send({ success: true, data: store });
@@ -461,8 +460,10 @@ export async function storeRoutes(app: FastifyInstance) {
                 s.address, s.tier, s.store_type, s.contact_name, s.contact_phone,
                 s.gaode_poi_id, s.discovered_by, s.created_at, s.updated_at,
                 s.approval_status, s.discovered_at, s.storefront_photo_url,
-                s.approved_by, s.approved_at, s.notes
+                s.approved_by, s.approved_at, s.notes,
+                disc.name as discoverer_name
          FROM stores s
+         LEFT JOIN employees disc ON disc.id = s.discovered_by
          WHERE s.id = $1 AND s.company_id = $2`,
         [request.params.id, companyId],
       );
@@ -473,18 +474,7 @@ export async function storeRoutes(app: FastifyInstance) {
 
       const store = result.rows[0];
 
-      // Get last visit
-      const lastVisitResult = await pool.query(
-        `SELECT v.id, v.checked_in_at, v.stock_status, v.notes, v.duration_minutes,
-                e.name as employee_name
-         FROM visits v
-         JOIN employees e ON e.id = v.employee_id
-         WHERE v.store_id = $1 AND v.company_id = $2
-         ORDER BY v.checked_in_at DESC LIMIT 1`,
-        [request.params.id, companyId],
-      );
-
-      // Get recent visits
+      // Get recent visits (first row doubles as last_visit)
       const recentVisitsResult = await pool.query(
         `SELECT v.id, v.checked_in_at, v.stock_status, v.notes, v.duration_minutes,
                 e.name as employee_name
@@ -506,24 +496,11 @@ export async function storeRoutes(app: FastifyInstance) {
         [request.params.id, companyId],
       );
 
-      // Get discoverer name if available
-      let discoverer_name = null;
-      if ((store as Record<string, unknown>).discovered_by) {
-        const discResult = await pool.query(
-          `SELECT name FROM employees WHERE id = $1`,
-          [(store as Record<string, unknown>).discovered_by],
-        );
-        if (discResult.rows.length > 0) {
-          discoverer_name = (discResult.rows[0] as Record<string, unknown>).name;
-        }
-      }
-
       return reply.send({
         success: true,
         data: {
           ...store,
-          discoverer_name,
-          last_visit: lastVisitResult.rows[0] || null,
+          last_visit: recentVisitsResult.rows[0] || null,
           recent_visits: recentVisitsResult.rows,
           latest_ai_analysis: aiAnalysisResult.rows[0] || null,
         },

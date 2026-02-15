@@ -70,26 +70,42 @@ export async function generateWeeklyReport(companyId: string, weekStart: string,
     [companyId, weekStart, weekEnd],
   );
 
+  // Batch queries for all reps' checklist rates and flagged visits (avoids N+1)
+  const [clBatchResult, flagBatchResult] = await Promise.all([
+    pool.query(
+      `SELECT v.employee_id, COALESCE(AVG(vcr.completion_rate), 0) as avg_rate
+       FROM visits v LEFT JOIN visit_checklist_results vcr ON vcr.visit_id = v.id
+       WHERE v.company_id = $1 AND v.checked_in_at >= $2 AND v.checked_in_at < $3
+       GROUP BY v.employee_id`,
+      [companyId, weekStart, weekEnd],
+    ),
+    pool.query(
+      `SELECT v.employee_id, COUNT(DISTINCT v.id) as cnt
+       FROM visits v JOIN visit_integrity_flags vif ON vif.visit_id = v.id
+       WHERE v.company_id = $1 AND v.checked_in_at >= $2 AND v.checked_in_at < $3 AND NOT vif.resolved
+       GROUP BY v.employee_id`,
+      [companyId, weekStart, weekEnd],
+    ),
+  ]);
+
+  const checklistMap = new Map<string, number>();
+  for (const row of clBatchResult.rows) {
+    const r = row as Record<string, unknown>;
+    checklistMap.set(r.employee_id as string, parseFloat(r.avg_rate as string));
+  }
+
+  const flaggedMap = new Map<string, number>();
+  for (const row of flagBatchResult.rows) {
+    const r = row as Record<string, unknown>;
+    flaggedMap.set(r.employee_id as string, parseInt(r.cnt as string, 10));
+  }
+
   const rep_stats = [];
   for (const row of repResult.rows) {
     const r = row as Record<string, unknown>;
     const empId = r.employee_id as string;
-
-    const clResult = await pool.query(
-      `SELECT COALESCE(AVG(vcr.completion_rate), 0) as avg_rate
-       FROM visit_checklist_results vcr JOIN visits v ON v.id = vcr.visit_id
-       WHERE v.company_id = $1 AND v.employee_id = $2 AND v.checked_in_at >= $3 AND v.checked_in_at < $4`,
-      [companyId, empId, weekStart, weekEnd],
-    );
-
-    const flagResult = await pool.query(
-      `SELECT COUNT(DISTINCT v.id) as cnt FROM visits v JOIN visit_integrity_flags vif ON vif.visit_id = v.id
-       WHERE v.company_id = $1 AND v.employee_id = $2 AND v.checked_in_at >= $3 AND v.checked_in_at < $4 AND NOT vif.resolved`,
-      [companyId, empId, weekStart, weekEnd],
-    );
-
     const totalVisitCount = parseInt(r.visits as string, 10);
-    const flagged = parseInt((flagResult.rows[0] as Record<string, unknown>).cnt as string, 10);
+    const flagged = flaggedMap.get(empId) || 0;
 
     rep_stats.push({
       employee_id: empId,
@@ -97,7 +113,7 @@ export async function generateWeeklyReport(companyId: string, weekStart: string,
       visits: totalVisitCount,
       unique_stores: parseInt(r.unique_stores as string, 10),
       avg_duration: Math.round(parseFloat(r.avg_duration as string)),
-      checklist_completion_rate: Math.round(parseFloat((clResult.rows[0] as Record<string, unknown>).avg_rate as string)),
+      checklist_completion_rate: Math.round(checklistMap.get(empId) || 0),
       flagged_visits: flagged,
       verified_visits: totalVisitCount - flagged,
     });

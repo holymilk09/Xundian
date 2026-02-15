@@ -78,6 +78,12 @@ CREATE TABLE stores (
   contact_phone TEXT,
   gaode_poi_id TEXT,
   discovered_by UUID REFERENCES employees(id),
+  discovered_at TIMESTAMPTZ,
+  storefront_photo_url TEXT,
+  approval_status TEXT DEFAULT 'approved',
+  approved_by UUID REFERENCES employees(id),
+  approved_at TIMESTAMPTZ,
+  notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -157,6 +163,145 @@ CREATE TABLE inventory_predictions (
 );
 
 -- ========================
+-- Daily Routes
+-- ========================
+CREATE TABLE daily_routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  employee_id UUID NOT NULL REFERENCES employees(id),
+  date DATE NOT NULL,
+  waypoints JSONB NOT NULL DEFAULT '[]',
+  total_distance_km DECIMAL(8, 2) NOT NULL DEFAULT 0,
+  estimated_duration_minutes INTEGER NOT NULL DEFAULT 0,
+  optimized BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(employee_id, date)
+);
+
+-- ========================
+-- Notifications
+-- ========================
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  employee_id UUID NOT NULL REFERENCES employees(id),
+  type TEXT NOT NULL CHECK (type IN ('revisit_reminder', 'oos_alert', 'route_ready', 'system', 'store_discovered')),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  store_id UUID REFERENCES stores(id),
+  schedule_id UUID REFERENCES revisit_schedule(id),
+  read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
+-- Shelf Comparisons
+-- ========================
+CREATE TABLE shelf_comparisons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID NOT NULL REFERENCES stores(id),
+  current_photo_id UUID NOT NULL REFERENCES visit_photos(id),
+  previous_photo_id UUID NOT NULL REFERENCES visit_photos(id),
+  diff_result JSONB NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('positive', 'neutral', 'warning', 'critical')),
+  confidence DECIMAL(3, 2) NOT NULL DEFAULT 0,
+  reviewed BOOLEAN NOT NULL DEFAULT false,
+  reviewed_by UUID REFERENCES employees(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
+-- Checklist Templates
+-- ========================
+CREATE TABLE checklist_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  name TEXT NOT NULL,
+  name_zh TEXT,
+  items JSONB NOT NULL DEFAULT '[]',
+  assigned_tiers TEXT[] NOT NULL DEFAULT '{}',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES employees(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
+-- Visit Checklist Results
+-- ========================
+CREATE TABLE visit_checklist_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visit_id UUID NOT NULL REFERENCES visits(id),
+  template_id UUID NOT NULL REFERENCES checklist_templates(id),
+  results JSONB NOT NULL DEFAULT '[]',
+  completion_rate DECIMAL(5, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
+-- Monthly Goals
+-- ========================
+CREATE TABLE monthly_goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  month DATE NOT NULL,
+  goals JSONB NOT NULL DEFAULT '[]',
+  created_by UUID REFERENCES employees(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(company_id, month)
+);
+
+-- ========================
+-- Goal Progress
+-- ========================
+CREATE TABLE goal_progress (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id UUID NOT NULL REFERENCES monthly_goals(id),
+  employee_id UUID NOT NULL REFERENCES employees(id),
+  progress JSONB NOT NULL DEFAULT '[]',
+  verified_count INTEGER NOT NULL DEFAULT 0,
+  flagged_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(goal_id, employee_id)
+);
+
+-- ========================
+-- Visit Integrity Flags
+-- ========================
+CREATE TABLE visit_integrity_flags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visit_id UUID NOT NULL REFERENCES visits(id),
+  flag_type TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('warning', 'critical')),
+  details JSONB NOT NULL DEFAULT '{}',
+  resolved BOOLEAN NOT NULL DEFAULT false,
+  resolved_by UUID REFERENCES employees(id),
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
+-- Promotions
+-- ========================
+CREATE TABLE promotions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  product_id UUID REFERENCES products(id),
+  title TEXT NOT NULL,
+  title_zh TEXT,
+  description TEXT NOT NULL,
+  description_zh TEXT,
+  display_instructions TEXT,
+  display_instructions_zh TEXT,
+  target_tiers TEXT[] NOT NULL DEFAULT '{A,B,C}',
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES employees(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
 -- Indexes
 -- ========================
 CREATE INDEX idx_stores_location ON stores USING GIST(location);
@@ -169,3 +314,14 @@ CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX idx_refresh_tokens_employee ON refresh_tokens(employee_id);
 CREATE INDEX idx_employees_company ON employees(company_id);
 CREATE INDEX idx_employees_phone ON employees(phone);
+CREATE INDEX idx_visit_photos_visit ON visit_photos(visit_id);
+CREATE INDEX idx_visit_photos_ai_processed ON visit_photos(ai_processed_at);
+CREATE INDEX idx_inventory_predictions_store_product ON inventory_predictions(store_id, product_id);
+CREATE INDEX idx_checklist_templates_company ON checklist_templates(company_id);
+CREATE INDEX idx_goal_progress_employee ON goal_progress(employee_id);
+CREATE INDEX idx_integrity_flags_visit ON visit_integrity_flags(visit_id);
+CREATE INDEX idx_integrity_flags_unresolved ON visit_integrity_flags(resolved) WHERE NOT resolved;
+CREATE INDEX idx_monthly_goals_month ON monthly_goals(company_id, month);
+CREATE INDEX idx_promotions_company ON promotions(company_id);
+CREATE INDEX idx_promotions_active ON promotions(company_id, is_active, start_date, end_date);
+CREATE INDEX idx_shelf_comparisons_store ON shelf_comparisons(store_id);

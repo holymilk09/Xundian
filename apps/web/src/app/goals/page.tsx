@@ -94,7 +94,7 @@ export default function GoalsPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setExportingCSV(false);
     }
@@ -131,7 +131,7 @@ export default function GoalsPage() {
       refetchProgress();
       refetchLeaderboard();
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setSaving(false);
     }
@@ -144,7 +144,7 @@ export default function GoalsPage() {
       refetchProgress();
       refetchLeaderboard();
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -215,7 +215,7 @@ export default function GoalsPage() {
 
           <div className="space-y-3">
             {goals.map((goal, index) => (
-              <div key={index} className="flex items-center gap-3 bg-white/[0.03] rounded-lg p-3">
+              <div key={goal.metric + '-' + index} className="flex items-center gap-3 bg-white/[0.03] rounded-lg p-3">
                 <span className="text-slate-500 text-xs w-5 shrink-0">{index + 1}</span>
                 <select
                   value={goal.metric}

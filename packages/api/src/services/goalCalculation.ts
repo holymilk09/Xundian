@@ -6,7 +6,22 @@ export async function calculateGoalProgress(
   employeeId: string,
   monthStart: string,
   monthEnd: string,
-): Promise<Array<{ goal_id: string; metric: string; target: number; current: number; verified: number; flagged: number; percent: number }>> {
+): Promise<{ progress: Array<{ goal_id: string; metric: string; target: number; current: number; verified: number; flagged: number; percent: number }>; verifiedCount: number; flaggedCount: number }> {
+  // Hoist verified/flagged queries before the loop — same for every goal
+  const [totalVisits, flaggedVisits] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*) as cnt FROM visits WHERE company_id = $1 AND employee_id = $2 AND checked_in_at >= $3 AND checked_in_at < $4`,
+      [companyId, employeeId, monthStart, monthEnd],
+    ),
+    pool.query(
+      `SELECT COUNT(DISTINCT v.id) as cnt FROM visits v JOIN visit_integrity_flags vif ON vif.visit_id = v.id WHERE v.company_id = $1 AND v.employee_id = $2 AND v.checked_in_at >= $3 AND v.checked_in_at < $4 AND NOT vif.resolved`,
+      [companyId, employeeId, monthStart, monthEnd],
+    ),
+  ]);
+  const totalCount = parseInt((totalVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
+  const flaggedCount = parseInt((flaggedVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
+  const verifiedCount = totalCount - flaggedCount;
+
   const results = [];
 
   for (const goal of goals) {
@@ -69,19 +84,6 @@ export async function calculateGoalProgress(
       }
     }
 
-    // Calculate verified/flagged
-    const totalVisits = await pool.query(
-      `SELECT COUNT(*) as cnt FROM visits WHERE company_id = $1 AND employee_id = $2 AND checked_in_at >= $3 AND checked_in_at < $4`,
-      [companyId, employeeId, monthStart, monthEnd],
-    );
-    const flaggedVisits = await pool.query(
-      `SELECT COUNT(DISTINCT v.id) as cnt FROM visits v JOIN visit_integrity_flags vif ON vif.visit_id = v.id WHERE v.company_id = $1 AND v.employee_id = $2 AND v.checked_in_at >= $3 AND v.checked_in_at < $4 AND NOT vif.resolved`,
-      [companyId, employeeId, monthStart, monthEnd],
-    );
-    const totalCount = parseInt((totalVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
-    const flaggedCount = parseInt((flaggedVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
-    const verifiedCount = totalCount - flaggedCount;
-
     results.push({
       goal_id: goal.id,
       metric: goal.metric,
@@ -93,7 +95,7 @@ export async function calculateGoalProgress(
     });
   }
 
-  return results;
+  return { progress: results, verifiedCount, flaggedCount };
 }
 
 export async function refreshGoalProgress(companyId: string, goalId: string, employeeId: string): Promise<void> {
@@ -109,18 +111,8 @@ export async function refreshGoalProgress(companyId: string, goalId: string, emp
   const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString();
   const goals = goal.goals as Array<{ id: string; metric: string; target: number }>;
 
-  const progress = await calculateGoalProgress(companyId, goals, employeeId, monthStart, monthEnd);
-
-  const totalVisits = await pool.query(
-    `SELECT COUNT(*) as cnt FROM visits WHERE company_id = $1 AND employee_id = $2 AND checked_in_at >= $3 AND checked_in_at < $4`,
-    [companyId, employeeId, monthStart, monthEnd],
-  );
-  const flaggedVisits = await pool.query(
-    `SELECT COUNT(DISTINCT v.id) as cnt FROM visits v JOIN visit_integrity_flags vif ON vif.visit_id = v.id WHERE v.company_id = $1 AND v.employee_id = $2 AND v.checked_in_at >= $3 AND v.checked_in_at < $4 AND NOT vif.resolved`,
-    [companyId, employeeId, monthStart, monthEnd],
-  );
-  const verifiedCount = parseInt((totalVisits.rows[0] as Record<string, unknown>).cnt as string, 10) - parseInt((flaggedVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
-  const flaggedCount = parseInt((flaggedVisits.rows[0] as Record<string, unknown>).cnt as string, 10);
+  // calculateGoalProgress now returns verified/flagged counts — no need to re-query
+  const { progress, verifiedCount, flaggedCount } = await calculateGoalProgress(companyId, goals, employeeId, monthStart, monthEnd);
 
   await pool.query(
     `INSERT INTO goal_progress (goal_id, employee_id, progress, verified_count, flagged_count, updated_at)
@@ -135,7 +127,7 @@ export async function refreshAllProgress(companyId: string, goalId: string): Pro
     `SELECT id FROM employees WHERE company_id = $1 AND is_active = true AND role = 'rep'`,
     [companyId],
   );
-  for (const rep of reps.rows) {
-    await refreshGoalProgress(companyId, goalId, (rep as Record<string, unknown>).id as string);
-  }
+  await Promise.all(
+    reps.rows.map((rep) => refreshGoalProgress(companyId, goalId, (rep as Record<string, unknown>).id as string)),
+  );
 }

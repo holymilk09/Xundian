@@ -37,7 +37,7 @@ export default function StoresPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      // error handled silently
+      alert(t('operationFailed'));
     } finally {
       setExporting(false);
     }
