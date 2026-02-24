@@ -2,9 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useApi } from '@/lib/hooks';
+import { useApi, useExportCSV } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, isManagerRole } from '@/lib/auth';
 
 const METRICS = [
   'visits_target',
@@ -62,10 +62,7 @@ function getDaysRemaining(): number {
 export default function GoalsPage() {
   const { t } = useTranslation();
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
 
   const { data: progressData, loading: progressLoading, refetch: refetchProgress } =
     useApi<RepProgress[]>('/goals/progress/current');
@@ -79,26 +76,12 @@ export default function GoalsPage() {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [exportingCSV, setExportingCSV] = useState(false);
-
-  const handleExportGoals = useCallback(async () => {
-    setExportingCSV(true);
-    try {
-      const res = await api.get(`/export/goals?month=${getCurrentMonth()}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `goals-${getCurrentMonth()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
-    } finally {
-      setExportingCSV(false);
-    }
-  }, []);
+  const goalsExportParams = new URLSearchParams();
+  goalsExportParams.set('month', getCurrentMonth());
+  const { exporting: exportingCSV, handleExport: handleExportGoals } = useExportCSV(
+    `/export/goals?${goalsExportParams.toString()}`,
+    `goals-${getCurrentMonth()}.csv`,
+  );
 
   const addGoal = () => {
     setGoals([...goals, { metric: 'visits_target', target: 0, label: '' }]);

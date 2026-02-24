@@ -1,7 +1,20 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import crypto from 'node:crypto';
 import pool from '../db/pool.js';
 import { processPhotoWithAI, submitPhotoForProcessing } from '../services/aiProxy.js';
 import type { AIShelfAnalysis } from '@xundian/shared';
+import { requireManager } from '../middleware/requireManager.js';
+
+const activeCompanyBatches = new Set<string>();
+
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do the comparison to avoid timing leak on length
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 interface PhotoIdParams {
   photoId: string;
@@ -24,7 +37,7 @@ export async function aiRoutes(app: FastifyInstance) {
       const apiKey = request.headers['x-api-key'];
       const expectedKey = process.env.AI_SERVER_API_KEY;
 
-      if (!expectedKey || apiKey !== expectedKey) {
+      if (!expectedKey || typeof apiKey !== 'string' || !timingSafeCompare(apiKey, expectedKey)) {
         return reply.code(401).send({ success: false, error: 'Invalid API key' });
       }
 
@@ -114,39 +127,45 @@ export async function aiRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /ai/process-batch — process all unanalyzed photos for company (manager only, LIMIT 50)
+  // POST /ai/process-batch — process all unanalyzed photos for company (manager only, LIMIT 20)
   app.post(
     '/process-batch',
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director' && request.employee.role !== 'admin') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId!;
 
-      const photos = await pool.query(
-        `SELECT vp.id FROM visit_photos vp
-         JOIN visits v ON v.id = vp.visit_id
-         WHERE v.company_id = $1 AND vp.ai_analysis IS NULL
-         ORDER BY vp.created_at DESC
-         LIMIT 50`,
-        [companyId],
-      );
-
-      const results: { photo_id: string; analysis: AIShelfAnalysis }[] = [];
-
-      for (const photo of photos.rows) {
-        const analysis = await processPhotoWithAI(photo.id as string, companyId);
-        results.push({ photo_id: photo.id as string, analysis });
+      if (activeCompanyBatches.has(companyId)) {
+        return reply.code(409).send({ success: false, error: 'A batch process is already running for your company' });
       }
+      activeCompanyBatches.add(companyId);
+      try {
+        const photos = await pool.query(
+          `SELECT vp.id FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.company_id = $1 AND vp.ai_analysis IS NULL
+           ORDER BY vp.created_at DESC
+           LIMIT 20`,
+          [companyId],
+        );
 
-      return reply.send({
-        success: true,
-        data: {
-          processed: results.length,
-          results,
-        },
-      });
+        const results: { photo_id: string; analysis: AIShelfAnalysis }[] = [];
+
+        for (const photo of photos.rows) {
+          const analysis = await processPhotoWithAI(photo.id as string, companyId);
+          results.push({ photo_id: photo.id as string, analysis });
+        }
+
+        return reply.send({
+          success: true,
+          data: {
+            processed: results.length,
+            results,
+          },
+        });
+      } finally {
+        activeCompanyBatches.delete(companyId);
+      }
     },
   );
 
@@ -230,9 +249,7 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post<{ Params: VisitIdParams }>(
     '/simulate/:visitId',
     async (request: FastifyRequest<{ Params: VisitIdParams }>, reply: FastifyReply) => {
-      if (request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director' && request.employee.role !== 'admin') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const { visitId } = request.params;
       const companyId = request.companyId!;

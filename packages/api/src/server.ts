@@ -4,8 +4,11 @@ import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import helmet from '@fastify/helmet';
+import csrf from '@fastify/csrf-protection';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateEnv } from './config/env.js';
 
 import { authPlugin } from './middleware/auth.js';
 import { tenantPlugin } from './middleware/tenant.js';
@@ -30,6 +33,7 @@ import { exportRoutes } from './routes/export.js';
 import { promotionRoutes } from './routes/promotions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const env = validateEnv();
 
 const app = Fastify({
   logger: {
@@ -39,17 +43,27 @@ const app = Fastify({
 
 // Register plugins
 await app.register(cors, {
-  origin: true,
+  origin: env.CORS_ORIGINS,
   credentials: true,
 });
 
 await app.register(jwt, {
-  secret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+  secret: env.JWT_SECRET,
 });
 
 await app.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
+});
+
+// Security headers
+await app.register(helmet, {
+  contentSecurityPolicy: false, // CSP needs careful tuning per deployment
+});
+
+// CSRF protection for cookie-based auth
+await app.register(csrf, {
+  cookieOpts: { signed: true },
 });
 
 await app.register(multipart, {
@@ -75,7 +89,13 @@ app.get('/health', async () => {
 });
 
 // Register routes
-await app.register(authRoutes, { prefix: '/auth' });
+await app.register(async function authWithRateLimit(authApp) {
+  await authApp.register(rateLimit, {
+    max: 10,
+    timeWindow: '1 minute',
+  });
+  await authApp.register(authRoutes);
+}, { prefix: '/auth' });
 await app.register(storeRoutes, { prefix: '/stores' });
 await app.register(visitRoutes, { prefix: '/visits' });
 await app.register(photoRoutes);
@@ -85,23 +105,32 @@ await app.register(analyticsRoutes, { prefix: '/analytics' });
 await app.register(alertRoutes, { prefix: '/alerts' });
 await app.register(routeRoutes, { prefix: '/routes' });
 await app.register(notificationRoutes, { prefix: '/notifications' });
-await app.register(aiRoutes, { prefix: '/ai' });
+await app.register(async function aiWithRateLimit(aiApp) {
+  await aiApp.register(rateLimit, {
+    max: 30,
+    timeWindow: '1 minute',
+  });
+  await aiApp.register(aiRoutes);
+}, { prefix: '/ai' });
 await app.register(predictionRoutes, { prefix: '/predictions' });
 await app.register(shelfDiffRoutes, { prefix: '/shelf-diffs' });
 await app.register(checklistRoutes, { prefix: '/checklists' });
 await app.register(goalRoutes, { prefix: '/goals' });
 await app.register(integrityRoutes, { prefix: '/integrity' });
 await app.register(reportRoutes, { prefix: '/reports' });
-await app.register(exportRoutes, { prefix: '/export' });
+await app.register(async function exportWithRateLimit(exportApp) {
+  await exportApp.register(rateLimit, {
+    max: 10,
+    timeWindow: '1 minute',
+  });
+  await exportApp.register(exportRoutes);
+}, { prefix: '/export' });
 await app.register(promotionRoutes, { prefix: '/promotions' });
 
 // Start server
-const port = parseInt(process.env.PORT || '3000', 10);
-const host = process.env.HOST || '0.0.0.0';
-
 try {
-  await app.listen({ port, host });
-  app.log.info(`Server listening on ${host}:${port}`);
+  await app.listen({ port: env.PORT, host: env.HOST });
+  app.log.info(`Server listening on ${env.HOST}:${env.PORT}`);
 } catch (err) {
   app.log.error(err);
   process.exit(1);

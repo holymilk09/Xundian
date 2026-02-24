@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, isManagerRole } from '@/lib/auth';
 import TierBadge from '@/components/TierBadge';
 import type { RouteWaypoint, RoutePriority, StoreTier } from '@xundian/shared';
 
@@ -34,10 +34,7 @@ export default function RoutePlannerPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
 
   const [generating, setGenerating] = useState(false);
   const [selectedRepId, setSelectedRepId] = useState<string>('');

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getIntegrityFlags, resolveFlag, getIntegritySummary } from '../services/integrity.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface FlagsQuerystring {
   resolved?: string;
@@ -12,10 +13,7 @@ interface FlagsQuerystring {
 export async function integrityRoutes(app: FastifyInstance) {
   // GET /integrity/summary
   app.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
-    const role = request.employee.role;
-    if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-      return reply.code(403).send({ success: false, error: 'Manager role required' });
-    }
+    if (!requireManager(request, reply)) return;
     const summary = await getIntegritySummary(request.companyId!);
     return reply.send({ success: true, data: summary });
   });
@@ -24,10 +22,7 @@ export async function integrityRoutes(app: FastifyInstance) {
   app.get<{ Querystring: FlagsQuerystring }>(
     '/flags',
     async (request: FastifyRequest<{ Querystring: FlagsQuerystring }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const result = await getIntegrityFlags(request.companyId!, {
         resolved: request.query.resolved === 'true' ? true : request.query.resolved === 'false' ? false : undefined,
@@ -62,10 +57,7 @@ export async function integrityRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>(
     '/flags/:id/resolve',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
       const flag = await resolveFlag(request.params.id, request.employee.id);
       if (!flag) {
         return reply.code(404).send({ success: false, error: 'Flag not found' });

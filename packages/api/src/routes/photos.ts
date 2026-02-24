@@ -26,10 +26,10 @@ export async function photoRoutes(app: FastifyInstance) {
       const companyId = request.companyId;
       const { visitId } = request.params;
 
-      // Verify visit belongs to this company
+      // Verify visit belongs to this company and to the current employee
       const visitResult = await pool.query(
-        'SELECT id FROM visits WHERE id = $1 AND company_id = $2',
-        [visitId, companyId],
+        'SELECT id FROM visits WHERE id = $1 AND company_id = $2 AND employee_id = $3',
+        [visitId, companyId, request.employee.id],
       );
 
       if (visitResult.rows.length === 0) {

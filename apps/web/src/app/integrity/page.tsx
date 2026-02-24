@@ -2,33 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useApi } from '@/lib/hooks';
+import { useApi, useExportCSV } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
-
-function useExportCSV(endpoint: string, filename: string) {
-  const { t } = useTranslation();
-  const [exporting, setExporting] = useState(false);
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const res = await api.get(endpoint, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
-    } finally {
-      setExporting(false);
-    }
-  }, [endpoint, filename, t]);
-  return { exporting, handleExport };
-}
+import { getUser, isManagerRole } from '@/lib/auth';
 
 const FLAG_TYPES = [
   'gps_too_far',
@@ -74,10 +50,7 @@ const severityColors: Record<string, { bg: string; text: string }> = {
 export default function IntegrityPage() {
   const { t } = useTranslation();
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
 
   const [tab, setTab] = useState<'unresolved' | 'resolved'>('unresolved');
   const [severityFilter, setSeverityFilter] = useState('');
@@ -88,10 +61,11 @@ export default function IntegrityPage() {
     `integrity-flags-${new Date().toISOString().split('T')[0]}.csv`,
   );
 
-  const resolvedParam = tab === 'resolved' ? 'true' : 'false';
-  const severityParam = severityFilter ? `&severity=${severityFilter}` : '';
-  const flagTypeParam = flagTypeFilter ? `&flag_type=${flagTypeFilter}` : '';
-  const flagsUrl = `/integrity/flags?resolved=${resolvedParam}${severityParam}${flagTypeParam}`;
+  const flagsParams = new URLSearchParams();
+  flagsParams.set('resolved', tab === 'resolved' ? 'true' : 'false');
+  if (severityFilter) flagsParams.set('severity', severityFilter);
+  if (flagTypeFilter) flagsParams.set('flag_type', flagTypeFilter);
+  const flagsUrl = `/integrity/flags?${flagsParams.toString()}`;
 
   const { data: summary, loading: summaryLoading } = useApi<IntegritySummary>('/integrity/summary');
   const { data: flags, loading: flagsLoading, refetch: refetchFlags } = useApi<IntegrityFlag[]>(flagsUrl);

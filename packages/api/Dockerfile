@@ -36,6 +36,11 @@ COPY --from=builder /app/packages/shared/package.json ../shared/
 
 RUN mkdir -p uploads
 
+# Run as non-root user
+RUN addgroup -g 1001 app && adduser -u 1001 -G app -s /bin/sh -D app
+RUN chown -R app:app /app
+USER app
+
 ENV NODE_ENV=production
 ENV PORT=3000
 

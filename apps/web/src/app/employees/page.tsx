@@ -31,7 +31,6 @@ export default function EmployeesPage() {
       await api.post('/company/employees', {
         name: formName,
         phone: formPhone,
-        password: 'demo123',
         role: formRole,
       });
       setFormName('');
@@ -40,7 +39,8 @@ export default function EmployeesPage() {
       setShowForm(false);
       refetch();
     } catch (err: any) {
-      alert(err.response?.data?.error || err.message);
+      console.error('Add employee failed:', err.response?.data?.error || err.message);
+      alert(t('operationFailed') || 'Operation failed. Please try again.');
     } finally {
       setSubmitting(false);
     }

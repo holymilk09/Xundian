@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { optimizeRoute } from '../services/routing.js';
 import type { RouteWaypoint } from '@xundian/shared';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface OptimizeBody {
   start_lat: number;
@@ -135,10 +136,7 @@ export async function routeRoutes(app: FastifyInstance) {
   app.get(
     '/team/today',
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (!['admin', 'area_manager', 'regional_director'].includes(role)) {
-        return reply.code(403).send({ success: false, error: 'Manager access required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId;
 

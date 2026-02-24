@@ -4,6 +4,7 @@ import type { StoreTier, StoreType, ApprovalStatus } from '@xundian/shared';
 import { discoverNearbyStores } from '../services/discovery.js';
 import { createNotification } from '../services/notifications.js';
 import { scheduleNextRevisit } from '../services/scheduler.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface StoreQuerystring {
   page?: string;
@@ -104,11 +105,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/pending',
     async (request: FastifyRequest, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const result = await pool.query(
         `SELECT s.id, s.name, s.name_zh, s.tier, s.store_type, s.address,
@@ -233,11 +230,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/:id/approve',
     async (request: FastifyRequest<{ Params: StoreParams; Body: ApproveStoreBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const { tier, store_type, name, name_zh } = request.body || {};
 
@@ -294,11 +287,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/:id/reject',
     async (request: FastifyRequest<{ Params: StoreParams; Body: RejectStoreBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const { reason } = request.body || {};
 
@@ -322,7 +311,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/',
     async (request: FastifyRequest<{ Querystring: StoreQuerystring }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const page = Math.max(1, parseInt(request.query.page || '1', 10));
+      const page = Math.min(Math.max(parseInt(request.query.page || '1', 10) || 1, 1), 1000);
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit || '20', 10)));
       const offset = (page - 1) * limit;
 
@@ -474,27 +463,27 @@ export async function storeRoutes(app: FastifyInstance) {
 
       const store = result.rows[0];
 
-      // Get recent visits (first row doubles as last_visit)
-      const recentVisitsResult = await pool.query(
-        `SELECT v.id, v.checked_in_at, v.stock_status, v.notes, v.duration_minutes,
-                e.name as employee_name
-         FROM visits v
-         JOIN employees e ON e.id = v.employee_id
-         WHERE v.store_id = $1 AND v.company_id = $2
-         ORDER BY v.checked_in_at DESC LIMIT 10`,
-        [request.params.id, companyId],
-      );
-
-      // Get latest AI analysis
-      const aiAnalysisResult = await pool.query(
-        `SELECT vp.id, vp.photo_url, vp.photo_type, vp.ai_analysis, vp.ai_processed_at, vp.created_at
-         FROM visit_photos vp
-         JOIN visits v ON v.id = vp.visit_id
-         WHERE v.store_id = $1 AND v.company_id = $2
-         AND vp.ai_analysis IS NOT NULL
-         ORDER BY vp.created_at DESC LIMIT 1`,
-        [request.params.id, companyId],
-      );
+      // Get recent visits and latest AI analysis in parallel
+      const [recentVisitsResult, aiAnalysisResult] = await Promise.all([
+        pool.query(
+          `SELECT v.id, v.checked_in_at, v.stock_status, v.notes, v.duration_minutes,
+                  e.name as employee_name
+           FROM visits v
+           JOIN employees e ON e.id = v.employee_id
+           WHERE v.store_id = $1 AND v.company_id = $2
+           ORDER BY v.checked_in_at DESC LIMIT 10`,
+          [request.params.id, companyId],
+        ),
+        pool.query(
+          `SELECT vp.id, vp.photo_url, vp.photo_type, vp.ai_analysis, vp.ai_processed_at, vp.created_at
+           FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.store_id = $1 AND v.company_id = $2
+           AND vp.ai_analysis IS NOT NULL
+           ORDER BY vp.created_at DESC LIMIT 1`,
+          [request.params.id, companyId],
+        ),
+      ]);
 
       return reply.send({
         success: true,

@@ -115,8 +115,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Dev bypass */}
-        {process.env.NODE_ENV === 'development' && (
+        {/* Dev bypass - only available with explicit build flag */}
+        {process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === 'true' && (
           <div className="mt-6 pt-4 border-t border-white/[0.06]">
             <p className="text-slate-500 text-[11px] text-center mb-3 uppercase tracking-wider">Dev Quick Login</p>
             <div className="flex gap-2">
@@ -134,18 +134,7 @@ export default function LoginPage() {
                       await login({ company_code: 'DEMO', phone: dev.phone, password: 'demo123' });
                       router.push('/dashboard');
                     } catch {
-                      // Fallback to mock if API is down
-                      localStorage.setItem('xundian_access_token', 'dev-token');
-                      localStorage.setItem('xundian_refresh_token', 'dev-refresh');
-                      localStorage.setItem('xundian_user', JSON.stringify({
-                        id: dev.phone,
-                        name: dev.name,
-                        phone: dev.phone,
-                        role: dev.role,
-                        company_id: '00000000-0000-0000-0000-000000000001',
-                        company_name: 'XunDian Demo Co',
-                      }));
-                      router.push('/dashboard');
+                      setError(i18n.language === 'en' ? 'API unavailable' : 'API 不可用');
                     } finally {
                       setLoading(false);
                     }

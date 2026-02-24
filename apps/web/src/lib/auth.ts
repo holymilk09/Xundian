@@ -23,7 +23,21 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   return payload;
 }
 
-export function logout(): void {
+export async function logout(): Promise<void> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  // Notify server of logout (token invalidation)
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    await fetch(`${baseUrl}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    // Proceed with local cleanup even if server call fails
+  }
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
@@ -38,4 +52,8 @@ export function getUser(): LoginResponse['employee'] | null {
   } catch {
     return null;
   }
+}
+
+export function isManagerRole(user: { role: string } | null | undefined): boolean {
+  return user?.role === 'admin' || user?.role === 'area_manager' || user?.role === 'regional_director';
 }

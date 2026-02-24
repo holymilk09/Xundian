@@ -1,11 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 export async function analyticsRoutes(app: FastifyInstance) {
   // GET /analytics — dashboard stats (for managers)
   app.get(
     '/',
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
 
       const [storesResult, visitedResult, oosResult, topPerformerResult] = await Promise.all([
@@ -80,6 +82,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
   app.get(
     '/visit-trends',
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
 
       const result = await pool.query(
@@ -87,7 +90,8 @@ export async function analyticsRoutes(app: FastifyInstance) {
          FROM visits
          WHERE company_id = $1 AND checked_in_at > NOW() - INTERVAL '30 days'
          GROUP BY DATE(checked_in_at)
-         ORDER BY date`,
+         ORDER BY date
+         LIMIT 365`,
         [companyId],
       );
 
@@ -105,6 +109,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
   app.get(
     '/coverage',
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
 
       // Fetch tier config
@@ -172,6 +177,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
   app.get(
     '/ai',
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
 
       const [processedResult, pendingResult, avgConfResult, avgSosResult, alertsResult] = await Promise.all([
@@ -229,6 +235,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
   app.get(
     '/team-comparison',
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
 
       const result = await pool.query(

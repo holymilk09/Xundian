@@ -1,10 +1,24 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { refreshAllProgress } from '../services/goalCalculation.js';
+import { requireManager } from '../middleware/requireManager.js';
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 interface GoalBody {
   month: string;
   goals: Array<{ id: string; metric: string; target: number; label: string; label_zh?: string }>;
+}
+
+function validateGoalTargets(targets: unknown): boolean {
+  if (!targets || typeof targets !== 'object') return false;
+  if (!Array.isArray(targets)) return false;
+  // Must have at least one goal with a numeric target
+  return targets.some((g: unknown) => {
+    if (!g || typeof g !== 'object') return false;
+    const goal = g as Record<string, unknown>;
+    return typeof goal.target === 'number' && goal.target >= 0;
+  });
 }
 
 export async function goalRoutes(app: FastifyInstance) {
@@ -50,10 +64,7 @@ export async function goalRoutes(app: FastifyInstance) {
 
   // POST /goals/progress/refresh
   app.post('/progress/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
-    const role = request.employee.role;
-    if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-      return reply.code(403).send({ success: false, error: 'Manager role required' });
-    }
+    if (!requireManager(request, reply)) return;
     const companyId = request.companyId;
     const goalResult = await pool.query(
       `SELECT id FROM monthly_goals WHERE company_id = $1 AND month = date_trunc('month', CURRENT_DATE)::date`,
@@ -108,15 +119,20 @@ export async function goalRoutes(app: FastifyInstance) {
   app.post<{ Body: GoalBody }>(
     '/',
     async (request: FastifyRequest<{ Body: GoalBody }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
       const companyId = request.companyId;
       const { month, goals } = request.body;
 
       if (!month || !goals || goals.length === 0) {
         return reply.code(400).send({ success: false, error: 'month and goals are required' });
+      }
+
+      if (!DATE_REGEX.test(month)) {
+        return reply.code(400).send({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
+
+      if (!validateGoalTargets(goals)) {
+        return reply.code(400).send({ success: false, error: 'Invalid goal targets format' });
       }
 
       const result = await pool.query(
@@ -145,6 +161,9 @@ export async function goalRoutes(app: FastifyInstance) {
     '/:month',
     async (request: FastifyRequest<{ Params: { month: string } }>, reply: FastifyReply) => {
       const companyId = request.companyId;
+      if (!DATE_REGEX.test(request.params.month)) {
+        return reply.code(400).send({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
       const result = await pool.query(
         `SELECT * FROM monthly_goals WHERE company_id = $1 AND month = $2`,
         [companyId, request.params.month],

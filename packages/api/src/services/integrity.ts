@@ -55,20 +55,41 @@ export async function checkVisitIntegrity(companyId: string, visitId: string): P
     }
   }
 
-  // 4. Impossible travel
-  const prevVisit = await pool.query(
-    `SELECT v.id, v.checked_in_at,
-            ST_Distance(s.location::geography, s2.location::geography) as dist_m
-     FROM visits v
-     JOIN stores s ON s.id = v.store_id
-     JOIN stores s2 ON s2.id = $3
-     WHERE v.employee_id = $1 AND v.company_id = $4
-       AND v.id != $5
-       AND v.checked_in_at < $2
-       AND v.checked_in_at > ($2::timestamptz - interval '30 minutes')
-     ORDER BY v.checked_in_at DESC LIMIT 1`,
-    [visit.employee_id, visit.checked_in_at, visit.store_id, companyId, visitId],
-  );
+  // 4-6: Run impossible travel, burst visits, and same GPS checks in parallel
+  const [prevVisit, burstResult, sameGpsResult] = await Promise.all([
+    // 4. Impossible travel
+    pool.query(
+      `SELECT v.id, v.checked_in_at,
+              ST_Distance(s.location::geography, s2.location::geography) as dist_m
+       FROM visits v
+       JOIN stores s ON s.id = v.store_id
+       JOIN stores s2 ON s2.id = $3
+       WHERE v.employee_id = $1 AND v.company_id = $4
+         AND v.id != $5
+         AND v.checked_in_at < $2
+         AND v.checked_in_at > ($2::timestamptz - interval '30 minutes')
+       ORDER BY v.checked_in_at DESC LIMIT 1`,
+      [visit.employee_id, visit.checked_in_at, visit.store_id, companyId, visitId],
+    ),
+    // 5. Burst visits (>5 in 30 min)
+    pool.query(
+      `SELECT COUNT(*) as cnt FROM visits
+       WHERE employee_id = $1 AND company_id = $2
+         AND checked_in_at BETWEEN ($3::timestamptz - interval '30 minutes') AND ($3::timestamptz + interval '30 minutes')`,
+      [visit.employee_id, companyId, visit.checked_in_at],
+    ),
+    // 6. Same GPS different stores
+    pool.query(
+      `SELECT id, store_id FROM visits
+       WHERE employee_id = $1 AND company_id = $2
+         AND id != $3
+         AND store_id != $4
+         AND ABS(gps_lat - $5) < 0.0001 AND ABS(gps_lng - $6) < 0.0001
+         AND checked_in_at > ($7::timestamptz - interval '24 hours')
+       LIMIT 1`,
+      [visit.employee_id, companyId, visitId, visit.store_id, visit.gps_lat, visit.gps_lng, visit.checked_in_at],
+    ),
+  ]);
 
   if (prevVisit.rows.length > 0) {
     const prev = prevVisit.rows[0] as Record<string, unknown>;
@@ -87,32 +108,14 @@ export async function checkVisitIntegrity(companyId: string, visitId: string): P
     }
   }
 
-  // 5. Burst visits (>5 in 60 min)
-  const burstResult = await pool.query(
-    `SELECT COUNT(*) as cnt FROM visits
-     WHERE employee_id = $1 AND company_id = $2
-       AND checked_in_at BETWEEN ($3::timestamptz - interval '60 minutes') AND ($3::timestamptz + interval '60 minutes')`,
-    [visit.employee_id, companyId, visit.checked_in_at],
-  );
   if (parseInt((burstResult.rows[0] as Record<string, unknown>).cnt as string, 10) > 5) {
     flags.push({
       flag_type: 'burst_visits',
       severity: 'critical',
-      details: { visits_in_hour: parseInt((burstResult.rows[0] as Record<string, unknown>).cnt as string, 10), threshold: 5, message: 'More than 5 visits within 1 hour' },
+      details: { visits_in_window: parseInt((burstResult.rows[0] as Record<string, unknown>).cnt as string, 10), threshold: 5, window_minutes: 30, message: 'More than 5 visits within 30 minutes' },
     });
   }
 
-  // 6. Same GPS different stores
-  const sameGpsResult = await pool.query(
-    `SELECT id, store_id FROM visits
-     WHERE employee_id = $1 AND company_id = $2
-       AND id != $3
-       AND store_id != $4
-       AND ABS(gps_lat - $5) < 0.0001 AND ABS(gps_lng - $6) < 0.0001
-       AND checked_in_at > ($7::timestamptz - interval '24 hours')
-     LIMIT 1`,
-    [visit.employee_id, companyId, visitId, visit.store_id, visit.gps_lat, visit.gps_lng, visit.checked_in_at],
-  );
   if (sameGpsResult.rows.length > 0) {
     flags.push({
       flag_type: 'same_gps_different_stores',

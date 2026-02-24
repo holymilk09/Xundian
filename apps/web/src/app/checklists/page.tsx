@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, isManagerRole } from '@/lib/auth';
 
 interface ChecklistItem {
   id: string;
@@ -37,7 +37,7 @@ export default function ChecklistsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const user = getUser();
-  const isManager = user?.role !== 'rep';
+  const isManager = isManagerRole(user);
   const { data: templates, loading, error, refetch } = useApi<ChecklistTemplate[]>('/checklists/templates');
 
   const [showForm, setShowForm] = useState(false);
@@ -122,11 +122,12 @@ export default function ChecklistsPage() {
   }, [formName, formNameZh, formItems, formTiers, editId, refetch]);
 
   const handleDelete = useCallback(async (id: string) => {
+    if (!window.confirm(t('confirmDelete') || 'Are you sure you want to delete this checklist?')) return;
     try {
       await api.delete(`/checklists/templates/${id}`);
       refetch();
     } catch {
-      alert(t('operationFailed'));
+      alert(t('operationFailed') || 'Operation failed. Please try again.');
     }
   }, [refetch, t]);
 

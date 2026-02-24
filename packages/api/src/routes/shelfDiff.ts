@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { generateShelfDiff } from '../services/shelfDiff.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface ShelfDiffQuerystring {
   page?: string;
@@ -26,7 +27,7 @@ export async function shelfDiffRoutes(app: FastifyInstance) {
     '/',
     async (request: FastifyRequest<{ Querystring: ShelfDiffQuerystring }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const page = Math.max(1, parseInt(request.query.page || '1', 10));
+      const page = Math.min(Math.max(parseInt(request.query.page || '1', 10) || 1, 1), 1000);
       const limit = Math.min(50, Math.max(1, parseInt(request.query.limit || '20', 10)));
       const offset = (page - 1) * limit;
 
@@ -159,11 +160,7 @@ export async function shelfDiffRoutes(app: FastifyInstance) {
     '/:id/review',
     async (request: FastifyRequest<{ Params: ShelfDiffParams }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const result = await pool.query(
         `UPDATE shelf_comparisons sc SET reviewed = true, reviewed_by = $2

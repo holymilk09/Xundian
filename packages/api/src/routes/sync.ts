@@ -19,6 +19,7 @@ export async function syncRoutes(app: FastifyInstance) {
 
       const changes: Record<string, { created: Record<string, unknown>[]; updated: Record<string, unknown>[]; deleted: string[] }> = {};
 
+      // Table names are from compile-time constant SYNCABLE_TABLES — safe for interpolation
       for (const table of SYNCABLE_TABLES) {
         if (!lastPulledAt) {
           // First sync: return all records as created
@@ -132,10 +133,17 @@ export async function syncRoutes(app: FastifyInstance) {
 
           // Handle deleted records
           for (const id of tableChanges.deleted) {
-            await client.query(
-              `DELETE FROM ${table} WHERE id = $1 AND company_id = $2`,
-              [id, companyId],
-            );
+            if (table === 'stores') {
+              await client.query('DELETE FROM stores WHERE id = $1 AND company_id = $2', [id, companyId]);
+            } else if (table === 'visits') {
+              await client.query('DELETE FROM visits WHERE id = $1 AND company_id = $2', [id, companyId]);
+            } else if (table === 'visit_photos') {
+              await client.query('DELETE FROM visit_photos WHERE id = $1 AND visit_id IN (SELECT id FROM visits WHERE company_id = $2)', [id, companyId]);
+            } else if (table === 'products') {
+              await client.query('DELETE FROM products WHERE id = $1 AND company_id = $2', [id, companyId]);
+            } else if (table === 'revisit_schedule') {
+              await client.query('DELETE FROM revisit_schedule WHERE id = $1 AND company_id = $2', [id, companyId]);
+            }
           }
         }
 

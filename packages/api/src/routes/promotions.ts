@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface PromotionBody {
   title: string;
@@ -98,10 +99,7 @@ export async function promotionRoutes(app: FastifyInstance) {
   app.post<{ Body: PromotionBody }>(
     '/',
     async (request: FastifyRequest<{ Body: PromotionBody }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId;
       const { title, title_zh, description, description_zh, display_instructions, display_instructions_zh, product_id, target_tiers, start_date, end_date } = request.body;
@@ -129,10 +127,7 @@ export async function promotionRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string }; Body: Partial<PromotionBody> & { is_active?: boolean } }>(
     '/:id',
     async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<PromotionBody> & { is_active?: boolean } }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId;
       const { id } = request.params;
@@ -183,10 +178,7 @@ export async function promotionRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>(
     '/:id',
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId;
       const { id } = request.params;

@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, isManagerRole } from '@/lib/auth';
 import { TIER_COLORS } from '@/lib/constants';
 
 type StatusFilter = 'all' | 'active' | 'upcoming' | 'expired';
@@ -21,13 +21,9 @@ export default function PromotionsPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
 
   const { data: promos, loading, refetch } = useApi<any[]>('/promotions');
-  const { data: products } = useApi<any[]>('/promotions/active'); // just for count
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -109,11 +105,12 @@ export default function PromotionsPage() {
   }, [form, editingId, t, refetch]);
 
   const handleDeactivate = useCallback(async (id: string) => {
+    if (!window.confirm(t('confirmDeactivate') || 'Are you sure you want to deactivate this promotion?')) return;
     try {
       await api.delete(`/promotions/${id}`);
       refetch();
     } catch {
-      alert(t('operationFailed'));
+      alert(t('operationFailed') || 'Operation failed. Please try again.');
     }
   }, [refetch, t]);
 

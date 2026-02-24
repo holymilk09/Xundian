@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { generatePredictions, getPredictionsForStore } from '../services/prediction.js';
 import pool from '../db/pool.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface StoreParams {
   storeId: string;
@@ -11,10 +12,7 @@ export async function predictionRoutes(app: FastifyInstance) {
   app.post(
     '/generate',
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const role = request.employee.role;
-      if (role !== 'area_manager' && role !== 'regional_director' && role !== 'admin') {
-        return reply.code(403).send({ success: false, error: 'Only managers can generate predictions' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const companyId = request.companyId!;
       const result = await generatePredictions(companyId);

@@ -6,8 +6,12 @@ import bcrypt from 'bcryptjs';
 // Run: npm run seed:demo -w packages/api
 // ============================================================
 
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.warn('WARNING: DATABASE_URL not set, using local development default');
+}
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://xundian:xundian_dev@localhost:5434/xundian',
+  connectionString: connectionString || 'postgres://xundian:xundian_dev@localhost:5434/xundian',
 });
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -834,10 +838,11 @@ async function seedDemo() {
       const waypoints = repStores.map((s, i) => ({
         store_id: s.id,
         store_name: s.name_zh,
-        order: i + 1,
-        lat: s.lat,
-        lng: s.lng,
+        sequence: i + 1,
+        latitude: s.lat,
+        longitude: s.lng,
         estimated_arrival: `${9 + i}:${randomInt(0, 5)}0`,
+        estimated_duration_minutes: randomInt(15, 40),
         visited: i < 2, // first 2 done
       }));
 

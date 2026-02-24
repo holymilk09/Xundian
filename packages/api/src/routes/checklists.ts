@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface TemplateParams {
   id: string;
@@ -80,11 +81,7 @@ export async function checklistRoutes(app: FastifyInstance) {
     '/templates',
     async (request: FastifyRequest<{ Body: CreateTemplateBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const { name, name_zh, items, assigned_tiers } = request.body;
 
@@ -130,11 +127,7 @@ export async function checklistRoutes(app: FastifyInstance) {
       reply: FastifyReply,
     ) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const { name, name_zh, items, assigned_tiers, is_active } = request.body;
 
@@ -174,11 +167,7 @@ export async function checklistRoutes(app: FastifyInstance) {
     '/templates/:id',
     async (request: FastifyRequest<{ Params: TemplateParams }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const role = request.employee.role;
-
-      if (role !== 'admin' && role !== 'area_manager' && role !== 'regional_director') {
-        return reply.code(403).send({ success: false, error: 'Manager role required' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const result = await pool.query(
         `DELETE FROM checklist_templates WHERE id = $1 AND company_id = $2 RETURNING id`,
@@ -222,6 +211,7 @@ export async function checklistRoutes(app: FastifyInstance) {
     '/results',
     async (request: FastifyRequest<{ Body: SubmitChecklistBody }>, reply: FastifyReply) => {
       const { visit_id, template_id, results } = request.body;
+      const companyId = request.companyId;
 
       if (!visit_id || !template_id || !results || !Array.isArray(results)) {
         return reply.code(400).send({
@@ -232,8 +222,8 @@ export async function checklistRoutes(app: FastifyInstance) {
 
       // Get template to calculate completion rate
       const templateResult = await pool.query(
-        'SELECT items FROM checklist_templates WHERE id = $1',
-        [template_id],
+        'SELECT items FROM checklist_templates WHERE id = $1 AND company_id = $2',
+        [template_id, companyId],
       );
 
       if (templateResult.rows.length === 0) {
@@ -270,14 +260,17 @@ export async function checklistRoutes(app: FastifyInstance) {
   app.get<{ Params: { visitId: string } }>(
     '/results/visit/:visitId',
     async (request: FastifyRequest<{ Params: { visitId: string } }>, reply: FastifyReply) => {
+      const companyId = request.companyId;
+
       const result = await pool.query(
         `SELECT vcr.id, vcr.visit_id, vcr.template_id, vcr.results, vcr.completion_rate,
                 vcr.created_at, ct.name as template_name, ct.name_zh as template_name_zh
          FROM visit_checklist_results vcr
          JOIN checklist_templates ct ON ct.id = vcr.template_id
-         WHERE vcr.visit_id = $1
+         JOIN visits v ON v.id = vcr.visit_id
+         WHERE vcr.visit_id = $1 AND v.company_id = $2
          ORDER BY vcr.created_at DESC`,
-        [request.params.visitId],
+        [request.params.visitId, companyId],
       );
 
       return reply.send({ success: true, data: result.rows });

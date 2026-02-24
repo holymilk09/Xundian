@@ -119,6 +119,10 @@ export async function companyRoutes(app: FastifyInstance) {
         });
       }
 
+      if (password.length < 8) {
+        return reply.code(400).send({ success: false, error: 'Password must be at least 8 characters' });
+      }
+
       // Check phone uniqueness
       const existing = await pool.query('SELECT id FROM employees WHERE phone = $1', [phone]);
       if (existing.rows.length > 0) {

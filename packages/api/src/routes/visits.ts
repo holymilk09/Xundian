@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { GPS_CONFIG } from '@xundian/shared';
 import type { StockStatus } from '@xundian/shared';
 import { scheduleNextRevisit } from '../services/scheduler.js';
+import { haversineDistanceKm } from '../services/routing.js';
 import { checkVisitIntegrity } from '../services/integrity.js';
 
 interface VisitQuerystring {
@@ -30,26 +31,13 @@ interface CreateVisitBody {
   is_audit?: boolean;
 }
 
-// Haversine distance in meters
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 export async function visitRoutes(app: FastifyInstance) {
   // GET /visits — list visits (paginated, filterable)
   app.get<{ Querystring: VisitQuerystring }>(
     '/',
     async (request: FastifyRequest<{ Querystring: VisitQuerystring }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const page = Math.max(1, parseInt(request.query.page || '1', 10));
+      const page = Math.min(Math.max(parseInt(request.query.page || '1', 10) || 1, 1), 1000);
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit || '20', 10)));
       const offset = (page - 1) * limit;
 
@@ -195,7 +183,7 @@ export async function visitRoutes(app: FastifyInstance) {
       const store = storeResult.rows[0]!;
 
       // Anti-cheat: Geofence check (must be within 200m)
-      const distance = haversineDistance(gps_lat, gps_lng, parseFloat(store.latitude), parseFloat(store.longitude));
+      const distance = haversineDistanceKm(gps_lat, gps_lng, parseFloat(store.latitude), parseFloat(store.longitude)) * 1000;
       if (distance > GPS_CONFIG.GEOFENCE_RADIUS_M) {
         return reply.code(422).send({
           success: false,

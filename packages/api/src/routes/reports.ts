@@ -1,10 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { generateWeeklyReport, generateReportCSV } from '../services/weeklyReport.js';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface WeeklyQuerystring {
   week_start?: string;
 }
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function getMostRecentMonday(): string {
   const now = new Date();
@@ -21,11 +24,12 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
-      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
-        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const weekStart = request.query.week_start || getMostRecentMonday();
+      if (request.query.week_start && !DATE_REGEX.test(request.query.week_start)) {
+        return reply.code(400).send({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
       const report = await generateWeeklyReport(request.companyId!, weekStart, weekEnd);
@@ -37,11 +41,12 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly/export/csv',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
-      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
-        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const weekStart = request.query.week_start || getMostRecentMonday();
+      if (request.query.week_start && !DATE_REGEX.test(request.query.week_start)) {
+        return reply.code(400).send({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
       const report = await generateWeeklyReport(request.companyId!, weekStart, weekEnd);
@@ -58,54 +63,46 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: WeeklyQuerystring }>(
     '/weekly/export/json',
     async (request: FastifyRequest<{ Querystring: WeeklyQuerystring }>, reply: FastifyReply) => {
-      if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
-        return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
-      }
+      if (!requireManager(request, reply)) return;
 
       const weekStart = request.query.week_start || getMostRecentMonday();
+      if (request.query.week_start && !DATE_REGEX.test(request.query.week_start)) {
+        return reply.code(400).send({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
       const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
       const report = await generateWeeklyReport(request.companyId!, weekStart, weekEnd);
-      return reply.send(report);
+      return reply.send({ success: true, data: report });
     },
   );
 
   // GET /reports/history
   app.get('/history', async (request: FastifyRequest, reply: FastifyReply) => {
-    if (request.employee.role !== 'admin' && request.employee.role !== 'area_manager' && request.employee.role !== 'regional_director') {
-      return reply.status(403).send({ success: false, error: 'Insufficient permissions' });
-    }
+    if (!requireManager(request, reply)) return;
 
     const companyId = request.companyId;
-    const weeks: Array<{ week_start: string; week_end: string; visit_count: number }> = [];
 
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const weekEnd = new Date(now);
-      weekEnd.setDate(now.getDate() - i * 7);
-      const day = weekEnd.getDay();
-      const mondayOffset = day === 0 ? 6 : day - 1;
-      const monday = new Date(weekEnd);
-      monday.setDate(weekEnd.getDate() - mondayOffset);
-      monday.setHours(0, 0, 0, 0);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 7);
+    const result = await pool.query(
+      `SELECT
+         week_start::text as week_start,
+         (week_start + INTERVAL '7 days')::date::text as week_end,
+         COALESCE(cnt, 0)::int as visit_count
+       FROM generate_series(
+         DATE_TRUNC('week', NOW())::date - INTERVAL '11 weeks',
+         DATE_TRUNC('week', NOW())::date,
+         INTERVAL '1 week'
+       ) AS week_start
+       LEFT JOIN (
+         SELECT DATE_TRUNC('week', checked_in_at)::date as visit_week, COUNT(*) as cnt
+         FROM visits
+         WHERE company_id = $1
+           AND checked_in_at >= DATE_TRUNC('week', NOW())::date - INTERVAL '11 weeks'
+         GROUP BY visit_week
+       ) v ON v.visit_week = week_start::date
+       ORDER BY week_start DESC`,
+      [companyId],
+    );
 
-      const ws = monday.toISOString().split('T')[0]!;
-      const we = sunday.toISOString().split('T')[0]!;
-
-      const result = await pool.query(
-        `SELECT COUNT(*) as cnt FROM visits WHERE company_id = $1 AND checked_in_at >= $2 AND checked_in_at < $3`,
-        [companyId, ws, we],
-      );
-
-      weeks.push({
-        week_start: ws,
-        week_end: we,
-        visit_count: parseInt((result.rows[0] as Record<string, unknown>).cnt as string, 10),
-      });
-    }
-
-    return reply.send({ success: true, data: weeks });
+    return reply.send({ success: true, data: result.rows });
   });
 }

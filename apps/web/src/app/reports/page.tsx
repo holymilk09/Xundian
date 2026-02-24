@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, isManagerRole } from '@/lib/auth';
 
 interface WeeklyReport {
   week_start: string;
@@ -57,15 +57,16 @@ function formatWeekLabel(dateStr: string): string {
 export default function ReportsPage() {
   const { t } = useTranslation();
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
 
   const [currentWeek, setCurrentWeek] = useState(() => getWeekStart(new Date()));
   const [exporting, setExporting] = useState<string | null>(null);
 
-  const reportUrl = useMemo(() => `/reports/weekly?week_start=${currentWeek}`, [currentWeek]);
+  const reportUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('week_start', currentWeek);
+    return `/reports/weekly?${params.toString()}`;
+  }, [currentWeek]);
   const { data: report, loading, error } = useApi<WeeklyReport>(reportUrl);
 
   const goPrevWeek = () => {
@@ -88,7 +89,9 @@ export default function ReportsPage() {
   const handleExportCSV = useCallback(async () => {
     setExporting('csv');
     try {
-      const res = await api.get(`/reports/weekly/export/csv?week_start=${currentWeek}`, {
+      const csvParams = new URLSearchParams();
+      csvParams.set('week_start', currentWeek);
+      const res = await api.get(`/reports/weekly/export/csv?${csvParams.toString()}`, {
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -99,8 +102,10 @@ export default function ReportsPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
+      console.info(`[AUDIT] Export: /reports/weekly/export/csv -> weekly-report-${currentWeek}.csv at ${new Date().toISOString()}`);
+    } catch (err: any) {
+      console.error('Export CSV failed:', err.response?.data?.error || err.message);
+      alert(t('operationFailed') || 'Operation failed. Please try again.');
     } finally {
       setExporting(null);
     }
@@ -109,7 +114,9 @@ export default function ReportsPage() {
   const handleExportExcel = useCallback(async () => {
     setExporting('excel');
     try {
-      const res = await api.get(`/export/visits?start_date=${currentWeek}`, {
+      const visitParams = new URLSearchParams();
+      visitParams.set('start_date', currentWeek);
+      const res = await api.get(`/export/visits?${visitParams.toString()}`, {
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -120,8 +127,10 @@ export default function ReportsPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
+      console.info(`[AUDIT] Export: /export/visits -> visits-export-${currentWeek}.csv at ${new Date().toISOString()}`);
+    } catch (err: any) {
+      console.error('Export visits failed:', err.response?.data?.error || err.message);
+      alert(t('operationFailed') || 'Operation failed. Please try again.');
     } finally {
       setExporting(null);
     }

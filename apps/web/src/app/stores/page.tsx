@@ -1,12 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import StoreTable from '@/components/StoreTable';
-import { useApi } from '@/lib/hooks';
-import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { useApi, useExportCSV } from '@/lib/hooks';
+import { getUser, isManagerRole } from '@/lib/auth';
 import type { StoreTier, StoreType } from '@xundian/shared';
 
 function formatLastVisit(dateStr: string | null): string | null {
@@ -20,28 +18,12 @@ function formatLastVisit(dateStr: string | null): string | null {
 export default function StoresPage() {
   const { t } = useTranslation();
   const user = getUser();
-  const isManager = user?.role !== 'rep';
+  const isManager = isManagerRole(user);
   const { data, loading, error } = useApi<any[]>('/stores?limit=100');
-  const [exporting, setExporting] = useState(false);
-
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const res = await api.get('/export/stores', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `stores-${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
-    } finally {
-      setExporting(false);
-    }
-  }, []);
+  const { exporting, handleExport } = useExportCSV(
+    '/export/stores',
+    `stores-${new Date().toISOString().split('T')[0]}.csv`,
+  );
 
   const stores = (data || []).map((item: any) => ({
     id: item.id,

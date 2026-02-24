@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
-import { useApi } from '@/lib/hooks';
-import api from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { useApi, useExportCSV } from '@/lib/hooks';
+import { getUser, isManagerRole } from '@/lib/auth';
 import TierBadge from '@/components/TierBadge';
 import type { StoreTier, ShelfDiffSeverity } from '@xundian/shared';
 
@@ -40,33 +39,14 @@ export default function ShelfDiffPage() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'en' | 'zh';
   const user = getUser();
-  const isManager =
-    user?.role === 'admin' ||
-    user?.role === 'area_manager' ||
-    user?.role === 'regional_director';
+  const isManager = isManagerRole(user);
   const { data, loading, error } = useApi<ShelfDiffItem[]>('/shelf-diffs');
   const [severityFilter, setSeverityFilter] = useState<ShelfDiffSeverity | 'all'>('all');
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewed' | 'unreviewed'>('all');
-  const [exporting, setExporting] = useState(false);
-
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const res = await api.get('/export/shelf-analysis', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `shelf-analysis-${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert(t('operationFailed'));
-    } finally {
-      setExporting(false);
-    }
-  }, []);
+  const { exporting, handleExport } = useExportCSV(
+    '/export/shelf-analysis',
+    `shelf-analysis-${new Date().toISOString().split('T')[0]}.csv`,
+  );
 
   const items = data || [];
   const filtered = items.filter((item) => {
