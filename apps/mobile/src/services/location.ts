@@ -19,9 +19,12 @@ async function requestPermission(): Promise<boolean> {
     return status === 'granted';
   }
 
-  const granted = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-  );
+  const fineLocation = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+  if (!fineLocation) {
+    return false;
+  }
+
+  const granted = await PermissionsAndroid.request(fineLocation);
   return granted === PermissionsAndroid.RESULTS.GRANTED;
 }
 

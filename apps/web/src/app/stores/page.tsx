@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import StoreTable from '@/components/StoreTable';
 import { useApi, useExportCSV } from '@/lib/hooks';
@@ -19,7 +20,18 @@ export default function StoresPage() {
   const { t } = useTranslation();
   const user = getUser();
   const isManager = isManagerRole(user);
-  const { data, loading, error } = useApi<any[]>('/stores?limit=100');
+  const [search, setSearch] = useState('');
+  const [tierFilter, setTierFilter] = useState<StoreTier | ''>('');
+  const [typeFilter, setTypeFilter] = useState<StoreType | ''>('');
+  const storesUrl = useMemo(() => {
+    const params = new URLSearchParams({ limit: '100' });
+    if (search.trim()) params.set('search', search.trim());
+    if (tierFilter) params.set('tier', tierFilter);
+    if (typeFilter) params.set('store_type', typeFilter);
+    return `/stores?${params.toString()}`;
+  }, [search, tierFilter, typeFilter]);
+
+  const { data, loading, error } = useApi<any[]>(storesUrl);
   const { exporting, handleExport } = useExportCSV(
     '/export/stores',
     `stores-${new Date().toISOString().split('T')[0]}.csv`,
@@ -29,10 +41,13 @@ export default function StoresPage() {
     id: item.id,
     name: item.name,
     name_zh: item.name_zh,
+    address: item.address,
+    gaode_poi_id: item.gaode_poi_id,
     tier: item.tier as StoreTier,
     store_type: item.store_type as StoreType,
     status: item.last_stock_status || 'pending',
     lastVisit: formatLastVisit(item.last_visit_at),
+    lastVisitAt: item.last_visit_at,
     sos: 0,
   }));
 
@@ -68,7 +83,17 @@ export default function StoresPage() {
       </div>
       {loading && <p className="text-slate-400">Loading...</p>}
       {error && <p className="text-danger">{error}</p>}
-      {!loading && !error && <StoreTable stores={stores} />}
+      {!loading && !error && (
+        <StoreTable
+          stores={stores}
+          search={search}
+          onSearchChange={setSearch}
+          tierFilter={tierFilter}
+          onTierFilterChange={setTierFilter}
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+        />
+      )}
     </div>
   );
 }

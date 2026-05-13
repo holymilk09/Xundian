@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import pool from '../db/pool.js';
 import type { EmployeeRole, TierConfig } from '@xundian/shared';
+import { requireManager } from '../middleware/requireManager.js';
 
 interface CreateEmployeeBody {
   name: string;
@@ -79,6 +80,7 @@ export async function companyRoutes(app: FastifyInstance) {
     '/employees',
     async (request: FastifyRequest, reply: FastifyReply) => {
       const companyId = request.companyId;
+      if (!requireManager(request, reply)) return;
 
       const result = await pool.query(
         `SELECT e.id, e.company_id, e.name, e.phone, e.role, e.territory_id, e.is_active, e.created_at,

@@ -9,14 +9,16 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing, StockStatusColors } from '../theme';
 import { getCurrentPosition, isAccuracySufficient } from '../services/location';
-import { GEOFENCE_RADIUS_M } from '../utils/constants';
+import { api } from '../services/api';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { StockStatus } from '@xundian/shared';
 
 type CheckInRouteProp = RouteProp<RootStackParamList, 'CheckIn'>;
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 const STOCK_OPTIONS: { key: StockStatus; i18nKey: string }[] = [
   { key: 'in_stock', i18nKey: 'inStock' },
@@ -27,13 +29,15 @@ const STOCK_OPTIONS: { key: StockStatus; i18nKey: string }[] = [
 
 export function CheckInScreen() {
   const { t, i18n } = useTranslation();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavProp>();
   const route = useRoute<CheckInRouteProp>();
   const { storeId } = route.params;
 
   const [stockStatus, setStockStatus] = useState<StockStatus>('in_stock');
   const [notes, setNotes] = useState('');
   const [checkedIn, setCheckedIn] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visitId, setVisitId] = useState<string | null>(null);
   const [location, setLocation] = useState<{
     lat: number;
     lng: number;
@@ -52,7 +56,7 @@ export function CheckInScreen() {
       .catch(() => {});
   }, []);
 
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
     if (!location) {
       Alert.alert(
         t('checkIn'),
@@ -69,7 +73,30 @@ export function CheckInScreen() {
       );
       return;
     }
-    setCheckedIn(true);
+
+    setIsSubmitting(true);
+    try {
+      const response = await api.post('/visits', {
+        store_id: storeId,
+        checked_in_at: new Date().toISOString(),
+        gps_lat: location.lat,
+        gps_lng: location.lng,
+        gps_accuracy_m: location.accuracy,
+        stock_status: stockStatus,
+        notes: notes || undefined,
+      });
+      const createdVisitId = response.data.data.id as string;
+      setVisitId(createdVisitId);
+      setCheckedIn(true);
+    } catch (error: any) {
+      Alert.alert(
+        t('checkIn'),
+        error?.response?.data?.error ||
+          (i18n.language === 'en' ? 'Check-in failed' : '签到失败'),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -118,12 +145,22 @@ export function CheckInScreen() {
             <Text style={styles.successMeta}>
               {new Date().toISOString().slice(0, 16).replace('T', ' ')}
             </Text>
+            <GradientButton
+              title={t('takePhoto')}
+              onPress={() => {
+                if (visitId) {
+                  navigation.navigate('Camera', { storeId, visitId });
+                }
+              }}
+              style={styles.photoButton}
+            />
           </View>
         ) : (
           <GradientButton
-            title={t('checkIn')}
+            title={isSubmitting ? '...' : t('checkIn')}
             onPress={handleCheckIn}
             colorFrom={Colors.success}
+            disabled={isSubmitting}
           />
         )}
 
@@ -243,6 +280,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(16,185,129,0.2)',
     alignItems: 'center',
+  },
+  photoButton: {
+    marginTop: Spacing.md,
   },
   successText: {
     color: Colors.success,

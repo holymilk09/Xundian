@@ -1,11 +1,14 @@
-import { Platform } from 'react-native';
+import { launchCamera } from 'react-native-image-picker';
 import { PHOTO_COMPRESSION_QUALITY, PHOTO_MAX_SIZE_MB } from '../utils/constants';
+import { api } from './api';
 
 export interface PhotoResult {
   uri: string;
   width: number;
   height: number;
   fileSize: number;
+  fileName?: string;
+  type?: string;
 }
 
 export interface WatermarkMetadata {
@@ -23,11 +26,39 @@ export interface WatermarkMetadata {
  * This is the service interface that will wrap the native module.
  */
 export async function capturePhoto(): Promise<PhotoResult> {
-  // Camera module integration point.
-  // In production, this wraps react-native-camera or react-native-image-picker.
-  throw new Error(
-    'Camera not available in this build. Install react-native-image-picker.',
-  );
+  const result = await launchCamera({
+    mediaType: 'photo',
+    cameraType: 'back',
+    quality: PHOTO_COMPRESSION_QUALITY,
+    saveToPhotos: false,
+  });
+
+  if (result.didCancel) {
+    throw new Error('Photo capture cancelled');
+  }
+
+  if (result.errorMessage) {
+    throw new Error(result.errorMessage);
+  }
+
+  const asset = result.assets?.[0];
+  if (!asset?.uri) {
+    throw new Error('No photo captured');
+  }
+
+  const fileSize = asset.fileSize ?? 0;
+  if (fileSize > 0 && !isPhotoSizeValid(fileSize)) {
+    throw new Error(`Photo exceeds ${PHOTO_MAX_SIZE_MB}MB limit`);
+  }
+
+  return {
+    uri: asset.uri,
+    width: asset.width ?? 0,
+    height: asset.height ?? 0,
+    fileSize,
+    fileName: asset.fileName,
+    type: asset.type,
+  };
 }
 
 /**
@@ -57,4 +88,22 @@ export async function addWatermark(
  */
 export function isPhotoSizeValid(fileSizeBytes: number): boolean {
   return fileSizeBytes <= PHOTO_MAX_SIZE_MB * 1024 * 1024;
+}
+
+export async function uploadVisitPhoto(
+  visitId: string,
+  photo: PhotoResult,
+  photoType: 'shelf' | 'storefront' | 'other' = 'shelf',
+): Promise<void> {
+  const form = new FormData();
+  form.append('photo_type', photoType);
+  form.append('file', {
+    uri: photo.uri,
+    name: photo.fileName || `visit-${visitId}.jpg`,
+    type: photo.type || 'image/jpeg',
+  } as unknown as Blob);
+
+  await api.post(`/visits/${visitId}/photos`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 }

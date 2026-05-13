@@ -55,9 +55,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        const token = get().accessToken;
-        if (token) {
-          authService.logoutServer();
+        const refreshToken = get().refreshToken;
+        if (refreshToken) {
+          authService.logoutServer(refreshToken);
         }
         set({
           employee: null,

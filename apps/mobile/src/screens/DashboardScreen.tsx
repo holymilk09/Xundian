@@ -8,20 +8,16 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/useAuthStore';
 import { StatCard } from '../components/StatCard';
 import { StoreCard } from '../components/StoreCard';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
 import { DEFAULT_SEARCH_RADIUS_KM } from '../utils/constants';
-import type { RootStackParamList } from '../navigation/RootNavigator';
-
-type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function DashboardScreen() {
   const { t, i18n } = useTranslation();
-  const navigation = useNavigation<NavProp>();
+  const navigation = useNavigation<any>();
   const employee = useAuthStore((s) => s.employee);
   const language = useAuthStore((s) => s.language);
   const setLanguage = useAuthStore((s) => s.setLanguage);
@@ -72,7 +68,7 @@ export function DashboardScreen() {
               14 {t('stores')} {'\u00B7'} 12.4 {t('km')}
             </Text>
           </View>
-          <GradientButton title={t('startRoute')} onPress={() => {}} />
+          <GradientButton title={t('startRoute')} onPress={() => navigation.navigate('Route')} />
           <View style={styles.routeInfo}>
             <Text style={styles.routeInfoText}>~3.5h</Text>
             <Text style={styles.routeInfoText}>{t('optimizeRoute')}</Text>

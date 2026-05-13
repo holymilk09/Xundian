@@ -341,7 +341,13 @@ export async function storeRoutes(app: FastifyInstance) {
       }
 
       if (request.query.search) {
-        conditions.push(`(s.name ILIKE $${paramIndex} OR s.name_zh ILIKE $${paramIndex})`);
+        conditions.push(`(
+          s.name ILIKE $${paramIndex}
+          OR s.name_zh ILIKE $${paramIndex}
+          OR s.address ILIKE $${paramIndex}
+          OR s.id::text ILIKE $${paramIndex}
+          OR s.gaode_poi_id ILIKE $${paramIndex}
+        )`);
         params.push(`%${request.query.search}%`);
         paramIndex++;
       }
@@ -502,6 +508,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/',
     async (request: FastifyRequest<{ Body: CreateStoreBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
+      if (!requireManager(request, reply)) return;
       const { name, name_zh, latitude, longitude, address, tier, store_type, contact_name, contact_phone, gaode_poi_id } = request.body;
 
       if (!name || latitude == null || longitude == null || !tier || !store_type) {
@@ -530,6 +537,7 @@ export async function storeRoutes(app: FastifyInstance) {
     '/:id',
     async (request: FastifyRequest<{ Params: StoreParams; Body: Partial<CreateStoreBody> }>, reply: FastifyReply) => {
       const companyId = request.companyId;
+      if (!requireManager(request, reply)) return;
       const { name, name_zh, latitude, longitude, address, tier, store_type, contact_name, contact_phone, gaode_poi_id } = request.body;
 
       // Build dynamic update

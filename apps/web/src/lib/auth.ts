@@ -25,6 +25,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
 
 export async function logout(): Promise<void> {
   const token = localStorage.getItem(TOKEN_KEY);
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
   // Notify server of logout (token invalidation)
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -34,6 +35,7 @@ export async function logout(): Promise<void> {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     });
   } catch {
     // Proceed with local cleanup even if server call fails

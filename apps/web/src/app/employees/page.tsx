@@ -12,6 +12,7 @@ export default function EmployeesPage() {
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
   const [formPhone, setFormPhone] = useState('');
+  const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<EmployeeRole>('rep');
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,16 +26,18 @@ export default function EmployeesPage() {
   };
 
   const handleAddEmployee = async () => {
-    if (!formName || !formPhone) return;
+    if (!formName || !formPhone || formPassword.length < 8) return;
     setSubmitting(true);
     try {
       await api.post('/company/employees', {
         name: formName,
         phone: formPhone,
+        password: formPassword,
         role: formRole,
       });
       setFormName('');
       setFormPhone('');
+      setFormPassword('');
       setFormRole('rep');
       setShowForm(false);
       refetch();
@@ -61,7 +64,7 @@ export default function EmployeesPage() {
       {/* Add Employee Form */}
       {showForm && (
         <div className="glass-card p-6 mb-6">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <input
               placeholder={t('name')}
               className="input-field"
@@ -73,6 +76,14 @@ export default function EmployeesPage() {
               className="input-field"
               value={formPhone}
               onChange={(e) => setFormPhone(e.target.value)}
+            />
+            <input
+              type="password"
+              placeholder={t('password')}
+              className="input-field"
+              value={formPassword}
+              onChange={(e) => setFormPassword(e.target.value)}
+              minLength={8}
             />
             <select
               className="input-field"
@@ -89,7 +100,7 @@ export default function EmployeesPage() {
             <button
               className="btn-primary text-sm py-2"
               onClick={handleAddEmployee}
-              disabled={submitting}
+              disabled={submitting || !formName || !formPhone || formPassword.length < 8}
             >
               {submitting ? '...' : t('saveChanges')}
             </button>

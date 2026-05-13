@@ -48,8 +48,8 @@ export default function RoutePlannerPage() {
     useApi<TeamRouteData[]>(isManager ? '/routes/team/today' : null);
 
   // Employees list for manager dropdown
-  const { data: employees } = useApi<{ id: string; name: string }[]>(
-    isManager ? '/employees' : null,
+  const { data: employees } = useApi<{ id: string; name: string; role: string }[]>(
+    isManager ? '/company/employees' : null,
   );
 
   const handleGenerateRoute = useCallback(async () => {
@@ -58,6 +58,7 @@ export default function RoutePlannerPage() {
       await api.post('/routes', {
         start_lat: CHENGDU_CENTER.lat,
         start_lng: CHENGDU_CENTER.lng,
+        ...(isManager && selectedRepId ? { employee_id: selectedRepId } : {}),
       });
       refetchRoute();
       if (isManager) refetchTeam();
@@ -66,7 +67,7 @@ export default function RoutePlannerPage() {
     } finally {
       setGenerating(false);
     }
-  }, [refetchRoute, refetchTeam, isManager, t]);
+  }, [refetchRoute, refetchTeam, isManager, selectedRepId, t]);
 
   const route = myRoute;
   const waypoints: RouteWaypoint[] = route?.waypoints || [];
@@ -87,10 +88,10 @@ export default function RoutePlannerPage() {
         </div>
         <button
           onClick={handleGenerateRoute}
-          disabled={generating}
+          disabled={generating || (isManager && !selectedRepId)}
           className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
         >
-          {generating ? t('generating') : t('generateTodayRoute')}
+          {generating ? t('generating') : isManager && !selectedRepId ? t('selectRep') : t('generateTodayRoute')}
         </button>
       </div>
 
@@ -201,7 +202,7 @@ export default function RoutePlannerPage() {
               className="bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary min-w-[200px]"
             >
               <option value="">-- {t('teamRoutes')} --</option>
-              {(employees || []).map((emp) => (
+              {(employees || []).filter((emp) => emp.role === 'rep').map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name}
                 </option>

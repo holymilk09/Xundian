@@ -14,7 +14,7 @@ export default function ManagerDashboard() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
-  const { data: dashboard, loading: dashLoading } = useApi<any>('/analytics/dashboard');
+  const { data: dashboard, loading: dashLoading } = useApi<any>('/analytics');
   const { data: employees, loading: empLoading } = useApi<any[]>('/company/employees');
   const { data: aiAnalytics } = useApi<any>('/analytics/ai');
 
@@ -88,7 +88,7 @@ export default function ManagerDashboard() {
       <div className="grid grid-cols-2 gap-6 mb-6">
         <AIInsightsCard
           photosProcessed={String(aiAnalytics?.photos_processed ?? '--')}
-          alertsGenerated={String(aiAnalytics?.alerts_generated ?? '--')}
+          alertsGenerated={String(aiAnalytics?.alerts_from_ai ?? '--')}
           avgShareOfShelf={aiAnalytics?.avg_share_of_shelf != null ? `${Math.round(aiAnalytics.avg_share_of_shelf)}%` : '--'}
         />
         <AtRiskStoresCard />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,30 @@ import { StockStatusBadge } from '../components/StockStatusBadge';
 import { GradientButton } from '../components/GradientButton';
 import { VisitTimeline } from '../components/VisitTimeline';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
+import { api } from '../services/api';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import type { StockStatus, StoreTier, StoreType } from '@xundian/shared';
 
 type DetailRouteProp = RouteProp<RootStackParamList, 'StoreDetail'>;
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
+
+interface StoreDetail {
+  id: string;
+  name: string;
+  name_zh?: string | null;
+  tier: StoreTier;
+  store_type: StoreType;
+  last_visit?: { checked_in_at: string; stock_status: StockStatus; notes?: string | null } | null;
+  recent_visits?: Array<{ checked_in_at: string; stock_status: StockStatus; notes?: string | null }>;
+  latest_ai_analysis?: {
+    ai_analysis?: {
+      our_products?: Array<{ facing_count?: number }>;
+      share_of_shelf_percent?: number;
+      competitors?: Array<{ name: string; facing_count?: number }>;
+      confidence?: number;
+    } | null;
+  } | null;
+}
 
 export function StoreDetailScreen() {
   const { t, i18n } = useTranslation();
@@ -26,22 +46,40 @@ export function StoreDetailScreen() {
   const { storeId } = route.params;
 
   const [showAI, setShowAI] = useState(false);
+  const [store, setStore] = useState<StoreDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Placeholder data -- in production, fetch from WatermelonDB by storeId
-  const store = {
-    id: storeId,
-    name: 'Yonghui Supermarket',
-    name_zh: '永辉超市',
-    tier: 'A' as const,
-    store_type: 'supermarket' as const,
-    sos: 34,
-    facings: 8,
-    lastVisitDays: 2,
-    status: 'visited' as const,
-  };
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    api.get(`/stores/${storeId}`)
+      .then((response) => {
+        if (mounted) setStore(response.data.data);
+      })
+      .catch(() => {
+        if (mounted) setStore(null);
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [storeId]);
+
+  const aiAnalysis = store?.latest_ai_analysis?.ai_analysis ?? null;
+  const sos = Math.round(aiAnalysis?.share_of_shelf_percent ?? 0);
+  const facings = useMemo(
+    () => (aiAnalysis?.our_products || []).reduce((total, product) => total + (product.facing_count || 0), 0),
+    [aiAnalysis],
+  );
+  const lastVisitDays = store?.last_visit?.checked_in_at
+    ? Math.max(0, Math.floor((Date.now() - new Date(store.last_visit.checked_in_at).getTime()) / 86400000))
+    : null;
 
   const displayName =
-    i18n.language === 'zh' && store.name_zh ? store.name_zh : store.name;
+    i18n.language === 'zh' && store?.name_zh ? store.name_zh : store?.name || storeId;
 
   return (
     <View style={styles.container}>
@@ -51,13 +89,13 @@ export function StoreDetailScreen() {
           <View style={styles.headerTop}>
             <View>
               <View style={styles.badges}>
-                <TierBadge tier={store.tier} />
-                <StockStatusBadge status="in_stock" />
+                {store?.tier && <TierBadge tier={store.tier} />}
+                <StockStatusBadge status={store?.last_visit?.stock_status || 'in_stock'} />
               </View>
               <Text style={styles.storeName}>{displayName}</Text>
               <Text style={styles.storeMeta}>
-                {t(store.store_type)} {'\u00B7'} ID #
-                {store.id.toString().padStart(5, '0')}
+                {store ? t(store.store_type) : isLoading ? '...' : i18n.language === 'en' ? 'Store unavailable' : '门店暂不可用'} {'\u00B7'} ID #
+                {storeId.slice(0, 8)}
               </Text>
             </View>
             <TouchableOpacity
@@ -75,23 +113,23 @@ export function StoreDetailScreen() {
             <Text
               style={[
                 styles.statValue,
-                { color: store.sos > 25 ? Colors.success : Colors.danger },
+                { color: sos > 25 ? Colors.success : Colors.danger },
               ]}
             >
-              {store.sos}%
+              {sos || '--'}{sos ? '%' : ''}
             </Text>
             <Text style={styles.statLabel}>{t('shelfShare')}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={[styles.statValue, { color: Colors.primary }]}>
-              {store.facings}
+              {facings || '--'}
             </Text>
             <Text style={styles.statLabel}>{t('facings')}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={[styles.statValue, { color: Colors.warning }]}>
-              {store.lastVisitDays}
-              {i18n.language === 'en' ? 'd' : '\u5929'}
+              {lastVisitDays ?? '--'}
+              {lastVisitDays != null ? i18n.language === 'en' ? 'd' : '\u5929' : ''}
             </Text>
             <Text style={styles.statLabel}>{t('lastVisit')}</Text>
           </View>
@@ -103,11 +141,6 @@ export function StoreDetailScreen() {
             title={t('checkIn')}
             onPress={() => navigation.navigate('CheckIn', { storeId })}
             colorFrom={Colors.success}
-            style={styles.actionButton}
-          />
-          <GradientButton
-            title={t('takePhoto')}
-            onPress={() => navigation.navigate('Camera', { storeId })}
             style={styles.actionButton}
           />
         </View>
@@ -131,30 +164,30 @@ export function StoreDetailScreen() {
                   style={[
                     styles.sosBarFill,
                     {
-                      width: `${store.sos}%`,
+                      width: `${sos}%`,
                       backgroundColor:
-                        store.sos > 25 ? Colors.success : Colors.danger,
+                        sos > 25 ? Colors.success : Colors.danger,
                     },
                   ]}
                 />
               </View>
-              <Text style={styles.sosValue}>{store.sos}%</Text>
+              <Text style={styles.sosValue}>{sos || '--'}{sos ? '%' : ''}</Text>
             </View>
 
             {/* Competitors */}
             <View style={styles.competitorBox}>
               <Text style={styles.competitorTitle}>{t('competitors')}</Text>
               <Text style={styles.competitorDetail}>
-                {i18n.language === 'en'
-                  ? 'Lee Kum Kee (4 facings) \u00B7 Chu Bang (3 facings)'
-                  : '李锦记(4面) \u00B7 厨邦(3面)'}
+                {(aiAnalysis?.competitors || [])
+                  .map((competitor) => `${competitor.name}${competitor.facing_count ? ` (${competitor.facing_count})` : ''}`)
+                  .join(' \u00B7 ') || '--'}
               </Text>
             </View>
 
             <Text style={styles.aiFooter}>
-              {i18n.language === 'en'
-                ? 'Analyzed by Qwen2.5-VL \u00B7 0.87 confidence'
-                : 'Qwen2.5-VL分析 \u00B7 置信度0.87'}
+              {aiAnalysis?.confidence != null
+                ? `${i18n.language === 'en' ? 'Analyzed by Qwen2.5-VL' : 'Qwen2.5-VL分析'} \u00B7 ${aiAnalysis.confidence} confidence`
+                : '--'}
             </Text>
           </View>
         )}
@@ -162,32 +195,11 @@ export function StoreDetailScreen() {
         {/* Visit Timeline */}
         <View style={styles.timelineSection}>
           <VisitTimeline
-            visits={[
-              {
-                date: '2026-02-07',
-                stockStatus: 'in_stock',
-                note:
-                  i18n.language === 'en'
-                    ? 'All products stocked, good placement'
-                    : '产品齐全，摆放良好',
-              },
-              {
-                date: '2026-01-28',
-                stockStatus: 'low_stock',
-                note:
-                  i18n.language === 'en'
-                    ? 'Oyster sauce running low, 2 bottles left'
-                    : '蚝油库存低，剩2瓶',
-              },
-              {
-                date: '2026-01-18',
-                stockStatus: 'added_product',
-                note:
-                  i18n.language === 'en'
-                    ? 'Added dark soy sauce to shelf'
-                    : '已上架老抽',
-              },
-            ]}
+            visits={(store?.recent_visits || []).map((visit) => ({
+              date: visit.checked_in_at.slice(0, 10),
+              stockStatus: visit.stock_status,
+              note: visit.notes || '',
+            }))}
           />
         </View>
       </ScrollView>

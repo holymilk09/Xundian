@@ -97,7 +97,11 @@ export async function authRoutes(app: FastifyInstance) {
 
       // Find valid refresh token
       const tokenResult = await pool.query(
-        'SELECT rt.id, rt.employee_id, e.company_id, e.role FROM refresh_tokens rt JOIN employees e ON e.id = rt.employee_id WHERE rt.token = $1 AND rt.expires_at > NOW()',
+        `SELECT rt.id, rt.employee_id, e.company_id, e.name, e.phone, e.role, c.name AS company_name
+         FROM refresh_tokens rt
+         JOIN employees e ON e.id = rt.employee_id
+         JOIN companies c ON c.id = e.company_id
+         WHERE rt.token = $1 AND rt.expires_at > NOW() AND e.is_active = true`,
         [refresh_token],
       );
 
@@ -133,6 +137,14 @@ export async function authRoutes(app: FastifyInstance) {
         data: {
           access_token: accessToken,
           refresh_token: newRefreshToken,
+          employee: {
+            id: tokenRow.employee_id,
+            name: tokenRow.name,
+            phone: tokenRow.phone,
+            role: tokenRow.role,
+            company_id: tokenRow.company_id,
+            company_name: tokenRow.company_name,
+          },
         },
       });
     },

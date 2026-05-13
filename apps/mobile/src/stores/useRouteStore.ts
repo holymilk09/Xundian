@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
+import { DEFAULT_ROUTE_START_LAT, DEFAULT_ROUTE_START_LNG } from '../utils/constants';
 import type { DailyRoute, RouteWaypoint } from '@xundian/shared';
 
 interface RouteState {
@@ -25,10 +26,10 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await api.get('/routes/today');
-      const route: DailyRoute = response.data.data;
+      const route: DailyRoute | null = response.data.data;
       set({
         todayRoute: route,
-        waypoints: route.waypoints,
+        waypoints: route?.waypoints ?? [],
         isLoading: false,
       });
     } catch {
@@ -39,7 +40,10 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
   optimizeRoute: async () => {
     set({ isLoading: true });
     try {
-      const response = await api.post('/routes/optimize');
+      const response = await api.post('/routes', {
+        start_lat: DEFAULT_ROUTE_START_LAT,
+        start_lng: DEFAULT_ROUTE_START_LNG,
+      });
       const route: DailyRoute = response.data.data;
       set({
         todayRoute: route,

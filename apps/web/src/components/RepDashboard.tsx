@@ -61,7 +61,7 @@ export default function RepDashboard() {
   const handleGenerateRoute = async () => {
     setGenerating(true);
     try {
-      await api.post('/routes/optimize', { start_lat: 30.57, start_lng: 104.07 });
+      await api.post('/routes', { start_lat: 30.57, start_lng: 104.07 });
       await refetchRoute();
     } catch {
       alert(t('operationFailed'));

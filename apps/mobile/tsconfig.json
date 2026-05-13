@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-native",
+    "experimentalDecorators": true,
     "lib": ["ES2022"],
     "baseUrl": ".",
     "paths": {

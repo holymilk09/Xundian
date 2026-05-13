@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import type { StoreTier, StoreType } from '@xundian/shared';
@@ -10,27 +9,62 @@ interface StoreRow {
   id: string;
   name: string;
   name_zh?: string;
+  address?: string;
+  gaode_poi_id?: string;
   tier: StoreTier;
   store_type: StoreType;
   status: string;
   lastVisit: string | null;
+  lastVisitAt?: string | null;
   sos: number;
 }
 
 interface StoreTableProps {
   stores: StoreRow[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  tierFilter: StoreTier | '';
+  onTierFilterChange: (value: StoreTier | '') => void;
+  typeFilter: StoreType | '';
+  onTypeFilterChange: (value: StoreType | '') => void;
 }
 
-export default function StoreTable({ stores }: StoreTableProps) {
+function formatCheckinTime(value?: string | null): string | null {
+  if (!value) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function shortStoreId(id: string): string {
+  return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+export default function StoreTable({
+  stores,
+  search,
+  onSearchChange,
+  tierFilter,
+  onTierFilterChange,
+  typeFilter,
+  onTypeFilterChange,
+}: StoreTableProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
-  const [search, setSearch] = useState('');
-  const [tierFilter, setTierFilter] = useState<StoreTier | ''>('');
-  const [typeFilter, setTypeFilter] = useState<StoreType | ''>('');
 
   const filtered = stores.filter((s) => {
-    const name = lang === 'zh' && s.name_zh ? s.name_zh : s.name;
-    const matchesSearch = name.toLowerCase().includes(search.toLowerCase());
+    const searchTerm = search.toLowerCase();
+    const searchable = [
+      s.id,
+      s.name,
+      s.name_zh,
+      s.address,
+      s.gaode_poi_id,
+    ].filter(Boolean).join(' ').toLowerCase();
+    const matchesSearch = searchable.includes(searchTerm);
     const matchesTier = tierFilter === '' || s.tier === tierFilter;
     const matchesType = typeFilter === '' || s.store_type === typeFilter;
     return matchesSearch && matchesTier && matchesType;
@@ -59,14 +93,14 @@ export default function StoreTable({ stores }: StoreTableProps) {
       <div className="flex flex-wrap gap-3 mb-5">
         <input
           type="text"
-          placeholder={t('search')}
+          placeholder={t('storeSearchPlaceholder')}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input-field max-w-xs"
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="input-field max-w-md"
         />
         <select
           value={tierFilter}
-          onChange={(e) => setTierFilter(e.target.value as StoreTier | '')}
+          onChange={(e) => onTierFilterChange(e.target.value as StoreTier | '')}
           className="input-field w-auto"
         >
           <option value="">{t('allTiers')}</option>
@@ -76,7 +110,7 @@ export default function StoreTable({ stores }: StoreTableProps) {
         </select>
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as StoreType | '')}
+          onChange={(e) => onTypeFilterChange(e.target.value as StoreType | '')}
           className="input-field w-auto"
         >
           <option value="">{t('allTypes')}</option>
@@ -93,6 +127,7 @@ export default function StoreTable({ stores }: StoreTableProps) {
           <thead>
             <tr className="border-b border-white/[0.06]">
               <th className="text-left text-slate-400 font-medium px-4 py-3">{t('storeName')}</th>
+              <th className="text-left text-slate-400 font-medium px-4 py-3">{t('storeId')}</th>
               <th className="text-left text-slate-400 font-medium px-4 py-3">{t('tier')}</th>
               <th className="text-left text-slate-400 font-medium px-4 py-3">{t('storeType')}</th>
               <th className="text-left text-slate-400 font-medium px-4 py-3">{t('status')}</th>
@@ -106,12 +141,28 @@ export default function StoreTable({ stores }: StoreTableProps) {
               const displayName = lang === 'zh' && store.name_zh ? store.name_zh : store.name;
               const statusKey = store.status.replace('_', '') as string;
               const statusClass = statusColors[store.status] || 'text-slate-400 bg-white/[0.05]';
+              const checkinTime = formatCheckinTime(store.lastVisitAt);
               return (
                 <tr
                   key={store.id}
                   className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
                 >
-                  <td className="px-4 py-3 text-white font-medium">{displayName}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-white font-medium">{displayName}</div>
+                    <div className="text-slate-500 text-xs mt-1 max-w-[260px] truncate">
+                      {store.address || t('addressPlaceholder')}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-slate-300 bg-white/[0.05] rounded px-2 py-1">
+                      {shortStoreId(store.id)}
+                    </span>
+                    {store.gaode_poi_id && (
+                      <div className="text-slate-600 text-[11px] mt-1 font-mono truncate max-w-[120px]">
+                        {store.gaode_poi_id}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <TierBadge tier={store.tier} />
                   </td>
@@ -122,7 +173,10 @@ export default function StoreTable({ stores }: StoreTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-400">
-                    {store.lastVisit || '--'}
+                    <div>{store.lastVisit || '--'}</div>
+                    <div className="text-slate-600 text-xs mt-1">
+                      {checkinTime || t('checkinTimePlaceholder')}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

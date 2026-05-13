@@ -10,10 +10,10 @@ import { Colors, FontSize } from '../theme';
 
 export type ManagerTabParamList = {
   MgrDashboard: undefined;
-  LiveMap: undefined;
-  Employees: undefined;
-  AIInsights: undefined;
-  Settings: undefined;
+  Route: undefined;
+  Nearby: undefined;
+  Alerts: undefined;
+  Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<ManagerTabParamList>();
@@ -50,34 +50,34 @@ export function ManagerTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="LiveMap"
+        name="Route"
         component={RouteScreen}
         options={{
-          tabBarLabel: t('liveFieldMap'),
+          tabBarLabel: t('map'),
           tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="Employees"
+        name="Nearby"
         component={NearbyScreen}
         options={{
-          tabBarLabel: t('employees'),
+          tabBarLabel: t('visits'),
           tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="AIInsights"
+        name="Alerts"
         component={AlertsScreen}
         options={{
-          tabBarLabel: t('aiInsights'),
+          tabBarLabel: t('alerts'),
           tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
-        name="Settings"
+        name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: t('settings'),
+          tabBarLabel: t('profile'),
           tabBarIcon: () => null,
         }}
       />

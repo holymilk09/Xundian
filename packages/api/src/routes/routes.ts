@@ -7,6 +7,7 @@ import { requireManager } from '../middleware/requireManager.js';
 interface OptimizeBody {
   start_lat: number;
   start_lng: number;
+  employee_id?: string;
   date?: string;
   store_ids?: string[];
 }
@@ -26,8 +27,8 @@ export async function routeRoutes(app: FastifyInstance) {
     '/',
     async (request: FastifyRequest<{ Body: OptimizeBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
-      const employeeId = request.employee.id;
-      const { start_lat, start_lng, date, store_ids } = request.body;
+      let employeeId = request.employee.id;
+      const { start_lat, start_lng, employee_id, date, store_ids } = request.body;
 
       if (start_lat == null || start_lng == null) {
         return reply.code(400).send({
@@ -37,6 +38,31 @@ export async function routeRoutes(app: FastifyInstance) {
       }
 
       const routeDate = date || new Date().toISOString().split('T')[0]!;
+
+      if (employee_id) {
+        const isManager = request.employee.role === 'admin' ||
+          request.employee.role === 'area_manager' ||
+          request.employee.role === 'regional_director';
+
+        if (!isManager) {
+          return reply.code(403).send({
+            success: false,
+            error: 'Only managers can generate routes for other employees',
+          });
+        }
+
+        const employeeResult = await pool.query(
+          `SELECT id FROM employees
+           WHERE id = $1 AND company_id = $2 AND is_active = true AND role = 'rep'`,
+          [employee_id, companyId],
+        );
+
+        if (employeeResult.rows.length === 0) {
+          return reply.code(404).send({ success: false, error: 'Rep not found' });
+        }
+
+        employeeId = employee_id;
+      }
 
       // Run route optimization
       const result = await optimizeRoute(

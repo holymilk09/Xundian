@@ -1,28 +1,27 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
+import { useRouteStore } from '../stores/useRouteStore';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 
-interface RouteStop {
-  sequence: number;
-  name: string;
-  nameZh: string;
-  tier: string;
-  visited: boolean;
-  estimatedTime: string;
-}
-
-const MOCK_STOPS: RouteStop[] = [
-  { sequence: 1, name: 'Yonghui Supermarket', nameZh: '永辉超市', tier: 'A', visited: true, estimatedTime: '09:00' },
-  { sequence: 2, name: 'FamilyMart #2891', nameZh: '全家便利店#2891', tier: 'B', visited: true, estimatedTime: '09:35' },
-  { sequence: 3, name: 'Carrefour Central', nameZh: '家乐福中心店', tier: 'A', visited: false, estimatedTime: '10:15' },
-  { sequence: 4, name: 'Lawson Nanjing Rd', nameZh: '罗森南京路店', tier: 'B', visited: false, estimatedTime: '10:50' },
-  { sequence: 5, name: "Uncle Wang's Shop", nameZh: '老王小卖部', tier: 'C', visited: false, estimatedTime: '11:20' },
-];
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function RouteScreen() {
   const { t, i18n } = useTranslation();
+  const navigation = useNavigation<NavProp>();
+  const todayRoute = useRouteStore((s) => s.todayRoute);
+  const waypoints = useRouteStore((s) => s.waypoints);
+  const isLoading = useRouteStore((s) => s.isLoading);
+  const loadTodayRoute = useRouteStore((s) => s.loadTodayRoute);
+  const optimizeRoute = useRouteStore((s) => s.optimizeRoute);
+
+  useEffect(() => {
+    loadTodayRoute();
+  }, [loadTodayRoute]);
 
   return (
     <View style={styles.container}>
@@ -30,7 +29,7 @@ export function RouteScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>{t('todayRoute')}</Text>
         <Text style={styles.meta}>
-          {MOCK_STOPS.length} {t('stores')} {'\u00B7'} 12.4 {t('km')}
+          {waypoints.length} {t('stores')} {'\u00B7'} {todayRoute?.total_distance_km ?? '--'} {t('km')}
         </Text>
       </View>
 
@@ -46,13 +45,26 @@ export function RouteScreen() {
       {/* Route Stops */}
       <ScrollView contentContainerStyle={styles.stopsContainer}>
         <GradientButton
-          title={t('startRoute')}
-          onPress={() => {}}
+          title={isLoading ? '...' : todayRoute ? t('optimizeRoute') : t('startRoute')}
+          onPress={optimizeRoute}
+          disabled={isLoading}
           style={styles.startButton}
         />
 
-        {MOCK_STOPS.map((stop) => (
-          <View key={stop.sequence} style={styles.stopItem}>
+        {!isLoading && waypoints.length === 0 && (
+          <Text style={styles.emptyText}>
+            {i18n.language === 'en'
+              ? 'No route generated yet.'
+              : '今日路线尚未生成。'}
+          </Text>
+        )}
+
+        {waypoints.map((stop) => (
+          <TouchableOpacity
+            key={`${stop.store_id}-${stop.sequence}`}
+            style={styles.stopItem}
+            onPress={() => navigation.navigate('StoreDetail', { storeId: stop.store_id })}
+          >
             <View
               style={[
                 styles.stopNumber,
@@ -75,16 +87,19 @@ export function RouteScreen() {
                   stop.visited && styles.stopNameVisited,
                 ]}
               >
-                {i18n.language === 'zh' ? stop.nameZh : stop.name}
+                {i18n.language === 'zh' ? stop.store_name_zh || stop.store_name : stop.store_name}
               </Text>
               <Text style={styles.stopMeta}>
-                {stop.tier} {'\u00B7'} {stop.estimatedTime}
+                {stop.tier || '-'} {'\u00B7'} {new Date(stop.estimated_arrival).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </Text>
             </View>
             {stop.visited && (
               <Text style={styles.checkMark}>{'\u2713'}</Text>
             )}
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
@@ -130,6 +145,12 @@ const styles = StyleSheet.create({
   stopsContainer: {
     padding: Spacing.lg,
     paddingBottom: 100,
+  },
+  emptyText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    marginTop: Spacing.lg,
   },
   startButton: {
     marginBottom: Spacing.lg,

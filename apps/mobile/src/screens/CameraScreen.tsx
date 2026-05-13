@@ -1,14 +1,51 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
+import { capturePhoto, uploadVisitPhoto } from '../services/camera';
+import type { RootStackParamList } from '../navigation/RootNavigator';
+
+type CameraRouteProp = RouteProp<RootStackParamList, 'Camera'>;
 
 export function CameraScreen() {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
+  const route = useRoute<CameraRouteProp>();
+  const { visitId } = route.params;
   const [photoTaken, setPhotoTaken] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleCapture = async () => {
+    if (!visitId) {
+      Alert.alert(
+        t('takePhoto'),
+        i18n.language === 'en'
+          ? 'Check in before taking visit photos.'
+          : '请先签到，再拍摄巡店照片。',
+      );
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const photo = await capturePhoto();
+      await uploadVisitPhoto(visitId, photo);
+      setPhotoTaken(true);
+    } catch (error) {
+      Alert.alert(
+        t('takePhoto'),
+        error instanceof Error
+          ? error.message
+          : i18n.language === 'en'
+            ? 'Camera is not available in this build.'
+            : '当前版本无法使用相机。',
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -29,9 +66,13 @@ export function CameraScreen() {
             : '相机预览区域'}
         </Text>
         <Text style={styles.previewSubtext}>
-          {i18n.language === 'en'
-            ? 'Requires react-native-camera native module'
-            : '需要 react-native-camera 原生模块'}
+          {visitId
+            ? i18n.language === 'en'
+              ? `Visit ${visitId.slice(0, 8)}`
+              : `巡店记录 ${visitId.slice(0, 8)}`
+            : i18n.language === 'en'
+              ? 'Check-in required before photos'
+              : '拍照前需要先签到'}
         </Text>
       </View>
 
@@ -61,8 +102,9 @@ export function CameraScreen() {
           </View>
         ) : (
           <GradientButton
-            title={t('takePhoto')}
-            onPress={() => setPhotoTaken(true)}
+            title={isUploading ? '...' : t('takePhoto')}
+            onPress={handleCapture}
+            disabled={!visitId || isUploading}
           />
         )}
       </View>
