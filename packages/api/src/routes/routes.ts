@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import pool from '../db/pool.js';
 import { optimizeRoute } from '../services/routing.js';
 import type { RouteWaypoint } from '@xundian/shared';
+import { convertGpsToGaode } from '../services/gaode.js';
 
 interface OptimizeBody {
   start_lat: number;
@@ -36,14 +37,15 @@ export async function routeRoutes(app: FastifyInstance) {
       }
 
       const routeDate = date || new Date().toISOString().split('T')[0]!;
+      const normalizedStart = await convertGpsToGaode({ lat: start_lat, lng: start_lng });
 
       // Run route optimization
       const result = await optimizeRoute(
         companyId!,
         employeeId,
         routeDate,
-        start_lat,
-        start_lng,
+        normalizedStart.lat,
+        normalizedStart.lng,
         store_ids,
       );
 

@@ -4,6 +4,7 @@ import type { StoreTier, StoreType, ApprovalStatus } from '@xundian/shared';
 import { discoverNearbyStores } from '../services/discovery.js';
 import { createNotification } from '../services/notifications.js';
 import { scheduleNextRevisit } from '../services/scheduler.js';
+import { convertGpsToGaode } from '../services/gaode.js';
 
 interface StoreQuerystring {
   page?: string;
@@ -49,6 +50,7 @@ interface DiscoverStoreBody {
   contact_phone?: string;
   notes?: string;
   storefront_photo_url?: string;
+  gaode_poi_id?: string;
   gps_accuracy_m?: number;
 }
 
@@ -133,7 +135,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request: FastifyRequest<{ Body: DiscoverStoreBody }>, reply: FastifyReply) => {
       const companyId = request.companyId;
       const employeeId = request.employee.id;
-      const { name, name_zh, latitude, longitude, address, tier, store_type, contact_name, contact_phone, notes, storefront_photo_url, gps_accuracy_m } = request.body;
+      const { name, name_zh, latitude, longitude, address, tier, store_type, contact_name, contact_phone, notes, storefront_photo_url, gaode_poi_id, gps_accuracy_m } = request.body;
 
       if (!name || latitude == null || longitude == null || !store_type) {
         return reply.code(400).send({
@@ -150,13 +152,17 @@ export async function storeRoutes(app: FastifyInstance) {
         });
       }
 
+      const normalizedLocation = gaode_poi_id
+        ? { lat: latitude, lng: longitude }
+        : await convertGpsToGaode({ lat: latitude, lng: longitude });
+
       // Anti-cheat: duplicate detection (exact name match within 200m)
       const dupResult = await pool.query(
         `SELECT id, name FROM stores
          WHERE company_id = $1
            AND LOWER(name) = LOWER($2)
            AND ST_DWithin(location::geography, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, 200)`,
-        [companyId, name, latitude, longitude],
+        [companyId, name, normalizedLocation.lat, normalizedLocation.lng],
       );
 
       if (dupResult.rows.length > 0) {
@@ -183,17 +189,17 @@ export async function storeRoutes(app: FastifyInstance) {
       const result = await pool.query(
         `INSERT INTO stores (company_id, name, name_zh, location, address, tier, store_type,
                              contact_name, contact_phone, notes, storefront_photo_url,
-                             discovered_by, discovered_at, approval_status)
+                             gaode_poi_id, discovered_by, discovered_at, approval_status)
          VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($5, $4), 4326), $6, $7, $8,
-                 $9, $10, $11, $12, $13, NOW(), 'pending')
+                 $9, $10, $11, $12, $13, $14, NOW(), 'pending')
          RETURNING id, company_id, name, name_zh,
                    ST_Y(location) as latitude, ST_X(location) as longitude,
                    address, tier, store_type, contact_name, contact_phone,
-                   discovered_by, discovered_at, approval_status, notes, storefront_photo_url,
+                   gaode_poi_id, discovered_by, discovered_at, approval_status, notes, storefront_photo_url,
                    created_at, updated_at`,
-        [companyId, name, name_zh || null, latitude, longitude, address || null,
+        [companyId, name, name_zh || null, normalizedLocation.lat, normalizedLocation.lng, address || null,
          tier || 'C', store_type, contact_name || null, contact_phone || null,
-         notes || null, storefront_photo_url || null, employeeId],
+         notes || null, storefront_photo_url || null, gaode_poi_id || null, employeeId],
       );
 
       const newStore = result.rows[0] as Record<string, unknown>;
@@ -412,6 +418,8 @@ export async function storeRoutes(app: FastifyInstance) {
         return reply.code(400).send({ success: false, error: 'lat and lng are required' });
       }
 
+      const normalizedLocation = await convertGpsToGaode({ lat, lng });
+
       const result = await pool.query(
         `SELECT s.id, s.company_id, s.name, s.name_zh,
                 ST_Y(s.location) as latitude, ST_X(s.location) as longitude,
@@ -422,7 +430,7 @@ export async function storeRoutes(app: FastifyInstance) {
          WHERE s.company_id = $3
            AND ST_DWithin(s.location::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $4)
          ORDER BY distance_m ASC`,
-        [lat, lng, companyId, radiusM],
+        [normalizedLocation.lat, normalizedLocation.lng, companyId, radiusM],
       );
 
       return reply.send({ success: true, data: result.rows });
@@ -522,6 +530,10 @@ export async function storeRoutes(app: FastifyInstance) {
         });
       }
 
+      const normalizedLocation = gaode_poi_id
+        ? { lat: latitude, lng: longitude }
+        : await convertGpsToGaode({ lat: latitude, lng: longitude });
+
       const result = await pool.query(
         `INSERT INTO stores (company_id, name, name_zh, location, address, tier, store_type, contact_name, contact_phone, gaode_poi_id, discovered_by, discovered_at, approval_status, approved_at)
          VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($5, $4), 4326), $6, $7, $8, $9, $10, $11, $12, NOW(), 'approved', NOW())
@@ -529,7 +541,7 @@ export async function storeRoutes(app: FastifyInstance) {
                    ST_Y(location) as latitude, ST_X(location) as longitude,
                    address, tier, store_type, contact_name, contact_phone,
                    gaode_poi_id, discovered_by, created_at, updated_at`,
-        [companyId, name, name_zh || null, latitude, longitude, address || null, tier, store_type, contact_name || null, contact_phone || null, gaode_poi_id || null, request.employee.id],
+        [companyId, name, name_zh || null, normalizedLocation.lat, normalizedLocation.lng, address || null, tier, store_type, contact_name || null, contact_phone || null, gaode_poi_id || null, request.employee.id],
       );
 
       return reply.code(201).send({ success: true, data: result.rows[0] });
@@ -551,8 +563,11 @@ export async function storeRoutes(app: FastifyInstance) {
       if (name !== undefined) { sets.push(`name = $${paramIndex++}`); params.push(name); }
       if (name_zh !== undefined) { sets.push(`name_zh = $${paramIndex++}`); params.push(name_zh); }
       if (latitude !== undefined && longitude !== undefined) {
+        const normalizedLocation = gaode_poi_id
+          ? { lat: latitude, lng: longitude }
+          : await convertGpsToGaode({ lat: latitude, lng: longitude });
         sets.push(`location = ST_SetSRID(ST_MakePoint($${paramIndex + 1}, $${paramIndex}), 4326)`);
-        params.push(latitude, longitude);
+        params.push(normalizedLocation.lat, normalizedLocation.lng);
         paramIndex += 2;
       }
       if (address !== undefined) { sets.push(`address = $${paramIndex++}`); params.push(address); }

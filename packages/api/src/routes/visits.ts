@@ -4,6 +4,7 @@ import { GPS_CONFIG } from '@xundian/shared';
 import type { StockStatus } from '@xundian/shared';
 import { scheduleNextRevisit } from '../services/scheduler.js';
 import { checkVisitIntegrity } from '../services/integrity.js';
+import { convertGpsToGaode } from '../services/gaode.js';
 
 interface VisitQuerystring {
   page?: string;
@@ -193,9 +194,10 @@ export async function visitRoutes(app: FastifyInstance) {
       }
 
       const store = storeResult.rows[0]!;
+      const normalizedLocation = await convertGpsToGaode({ lat: gps_lat, lng: gps_lng });
 
       // Anti-cheat: Geofence check (must be within 200m)
-      const distance = haversineDistance(gps_lat, gps_lng, parseFloat(store.latitude), parseFloat(store.longitude));
+      const distance = haversineDistance(normalizedLocation.lat, normalizedLocation.lng, parseFloat(store.latitude), parseFloat(store.longitude));
       if (distance > GPS_CONFIG.GEOFENCE_RADIUS_M) {
         return reply.code(422).send({
           success: false,
@@ -207,7 +209,7 @@ export async function visitRoutes(app: FastifyInstance) {
         `INSERT INTO visits (company_id, store_id, employee_id, checked_in_at, gps_lat, gps_lng, gps_accuracy_m, stock_status, notes, duration_minutes, is_audit)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
-        [companyId, store_id, employeeId, checked_in_at, gps_lat, gps_lng, gps_accuracy_m, stock_status, notes || null, duration_minutes || null, is_audit || false],
+        [companyId, store_id, employeeId, checked_in_at, normalizedLocation.lat, normalizedLocation.lng, gps_accuracy_m, stock_status, notes || null, duration_minutes || null, is_audit || false],
       );
 
       // Fire-and-forget integrity check

@@ -1,4 +1,4 @@
-version: '3.8'
+# SECURITY: Set DB_PASSWORD, RABBITMQ_PASSWORD, and JWT_SECRET in .env for non-dev environments
 
 services:
   # PostgreSQL with PostGIS
@@ -43,21 +43,27 @@ services:
   # Backend API
   api:
     build:
-      context: ./packages/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: packages/api/Dockerfile
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       DATABASE_URL: postgres://xundian:${DB_PASSWORD:-xundian_dev}@db:5432/xundian
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://xundian:${RABBITMQ_PASSWORD:-xundian_dev}@rabbitmq:5672
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      GAODE_API_KEY: ${GAODE_API_KEY}
-      OSS_ENDPOINT: ${OSS_ENDPOINT}
-      OSS_BUCKET: ${OSS_BUCKET}
-      OSS_ACCESS_KEY: ${OSS_ACCESS_KEY}
-      OSS_SECRET_KEY: ${OSS_SECRET_KEY}
+      GAODE_API_KEY: ${GAODE_API_KEY:-}
+      GAODE_WEB_SERVICE_KEY: ${GAODE_WEB_SERVICE_KEY:-${GAODE_API_KEY:-}}
+      GAODE_WEB_SERVICE_PRIVATE_KEY: ${GAODE_WEB_SERVICE_PRIVATE_KEY:-}
+      GAODE_JS_KEY: ${GAODE_JS_KEY:-}
+      GAODE_JS_SECURITY_CODE: ${GAODE_JS_SECURITY_CODE:-}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      ENABLE_DEMO_DATA: ${ENABLE_DEMO_DATA:-false}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:-}
+      OSS_BUCKET: ${OSS_BUCKET:-}
+      OSS_ACCESS_KEY: ${OSS_ACCESS_KEY:-}
+      OSS_SECRET_KEY: ${OSS_SECRET_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -65,33 +71,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
-    volumes:
-      - ./packages/api/src:/app/src
-
   # Manager Web Dashboard
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     ports:
-      - "3001:3000"
+      - "3001:3001"
     environment:
       API_URL: http://api:3000
+      NEXT_PUBLIC_GAODE_JS_KEY: ${NEXT_PUBLIC_GAODE_JS_KEY:-${GAODE_JS_KEY:-}}
+      NEXT_PUBLIC_GAODE_SECURITY_JS_CODE: ${NEXT_PUBLIC_GAODE_SECURITY_JS_CODE:-${GAODE_JS_SECURITY_CODE:-}}
+      NEXT_PUBLIC_ENABLE_DEMO_DATA: ${NEXT_PUBLIC_ENABLE_DEMO_DATA:-false}
     depends_on:
       - api
-
-  # Inventory Prediction ML Service
-  ml:
-    build:
-      context: ./ml
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgres://xundian:${DB_PASSWORD:-xundian_dev}@db:5432/xundian
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   pgdata:

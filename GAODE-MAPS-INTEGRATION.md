@@ -113,16 +113,30 @@ Typical rep daily usage:
 
 ### API Key Configuration
 ```
-# Environment variable — single source of truth
-GAODE_API_KEY=your_key_here
-GAODE_API_SECRET=your_secret_here  # Required since Dec 2021 security upgrade
+# Backend Web Service API
+GAODE_WEB_SERVICE_KEY=your_web_service_key_here
+GAODE_WEB_SERVICE_PRIVATE_KEY=your_web_service_private_key_here  # Optional sig private key
+
+# Backward-compatible alias used by older local envs
+GAODE_API_KEY=your_web_service_key_here
+
+# Web dashboard JS API
+NEXT_PUBLIC_GAODE_JS_KEY=your_js_api_key_here
+NEXT_PUBLIC_GAODE_SECURITY_JS_CODE=your_js_security_jscode_here
 ```
 
-### Key Security (Required since Dec 2021)
-Gaode requires a paired security key (安全密钥) for all new API keys. For Web Service API calls from the backend, this means:
-- Generate a digital signature for each request using the security key
-- The signature is an MD5 hash of the sorted query parameters + security key
-- Never transmit the security key itself — only the computed signature
+### Key Security
+- Web Service API calls are backend-proxied through `packages/api/src/services/gaode.ts`.
+- If `GAODE_WEB_SERVICE_PRIVATE_KEY` is set, the backend adds `sig=MD5(sorted request params including key + private key)`.
+- JS API rendering uses `NEXT_PUBLIC_GAODE_JS_KEY`; newer JS keys also need `NEXT_PUBLIC_GAODE_SECURITY_JS_CODE`.
+- Never expose `GAODE_WEB_SERVICE_PRIVATE_KEY` to mobile or web clients.
+
+### Current Plug-In Points
+- `GET /health/maps`: unauthenticated readiness check for key/signature/demo status.
+- `GET /maps/config`: authenticated web/mobile config summary plus JS key.
+- `POST /maps/convert`: converts up to 40 GPS/mapbar/Baidu coordinate pairs to Gaode coordinates.
+- `GET /stores/discover`: uses Gaode POI around search when the Web Service key is present.
+- `GET /stores/nearby`, `POST /stores`, `POST /stores/discover`, `POST /routes`, and `POST /visits` normalize incoming GPS through Gaode conversion when keys are present.
 
 ### Base URLs
 ```

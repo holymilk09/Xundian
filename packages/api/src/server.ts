@@ -28,6 +28,8 @@ import { integrityRoutes } from './routes/integrity.js';
 import { reportRoutes } from './routes/reports.js';
 import { exportRoutes } from './routes/export.js';
 import { promotionRoutes } from './routes/promotions.js';
+import { mapRoutes } from './routes/maps.js';
+import { getGaodeReadiness } from './services/gaode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +76,10 @@ app.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
 
+app.get('/health/maps', async () => {
+  return getGaodeReadiness();
+});
+
 // Register routes
 await app.register(authRoutes, { prefix: '/auth' });
 await app.register(storeRoutes, { prefix: '/stores' });
@@ -94,6 +100,7 @@ await app.register(integrityRoutes, { prefix: '/integrity' });
 await app.register(reportRoutes, { prefix: '/reports' });
 await app.register(exportRoutes, { prefix: '/export' });
 await app.register(promotionRoutes, { prefix: '/promotions' });
+await app.register(mapRoutes, { prefix: '/maps' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3000', 10);
