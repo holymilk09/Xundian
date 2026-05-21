@@ -1,4 +1,5 @@
 import pool from '../db/pool.js';
+import { searchRetailPoisAround } from './gaode.js';
 
 export interface DiscoveredStore {
   name: string;
@@ -9,6 +10,7 @@ export interface DiscoveredStore {
   distance_m: number;
   gaode_poi_id: string;
   source: 'gaode' | 'mock';
+  coordinate_system?: 'gcj02' | 'input';
 }
 
 /**
@@ -27,10 +29,10 @@ export async function discoverNearbyStores(
   lng: number,
   radiusM: number = 2000,
 ): Promise<DiscoveredStore[]> {
-  const gaodeApiKey = process.env.GAODE_API_KEY;
+  const gaodeApiKey = process.env.GAODE_WEB_SERVICE_KEY || process.env.GAODE_API_KEY;
 
   if (gaodeApiKey) {
-    return discoverViaGaode(companyId, lat, lng, radiusM, gaodeApiKey);
+    return discoverViaGaode(companyId, lat, lng, radiusM);
   }
 
   const demoMode = process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true';
@@ -46,30 +48,8 @@ async function discoverViaGaode(
   lat: number,
   lng: number,
   radiusM: number,
-  apiKey: string,
 ): Promise<DiscoveredStore[]> {
-  // Gaode uses lng,lat order (not lat,lng)
-  const location = `${lng},${lat}`;
-  const keywords = '超市|便利店|小卖部|商店';
-  const types = '060100|060101|060102|060300|060301|060302';
-
-  const url = `https://restapi.amap.com/v3/place/around?key=${apiKey}&location=${location}&keywords=${encodeURIComponent(keywords)}&types=${types}&radius=${radiusM}&offset=20&page=1&extensions=all`;
-
-  const response = await fetch(url);
-  const data = (await response.json()) as {
-    status: string;
-    pois?: Array<{
-      id: string;
-      name: string;
-      location: string;
-      address: string;
-      distance: string;
-    }>;
-  };
-
-  if (data.status !== '1' || !data.pois) {
-    return [];
-  }
+  const pois = await searchRetailPoisAround({ lat, lng }, radiusM);
 
   // Get existing gaode_poi_ids for this company to filter out duplicates
   const existingResult = await pool.query(
@@ -80,21 +60,19 @@ async function discoverViaGaode(
 
   const stores: DiscoveredStore[] = [];
 
-  for (const poi of data.pois) {
+  for (const poi of pois) {
     if (existingPoiIds.has(poi.id)) continue;
-
-    const [poiLng, poiLat] = poi.location.split(',').map(Number);
-    if (poiLng === undefined || poiLat === undefined) continue;
 
     stores.push({
       name: poi.name,
       name_zh: poi.name,
-      latitude: poiLat,
-      longitude: poiLng,
+      latitude: poi.latitude,
+      longitude: poi.longitude,
       address: poi.address || '',
-      distance_m: parseInt(poi.distance, 10) || 0,
+      distance_m: poi.distance_m,
       gaode_poi_id: poi.id,
       source: 'gaode',
+      coordinate_system: 'gcj02',
     });
   }
 

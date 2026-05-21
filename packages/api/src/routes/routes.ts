@@ -3,6 +3,7 @@ import pool from '../db/pool.js';
 import { optimizeRoute } from '../services/routing.js';
 import type { RouteWaypoint } from '@xundian/shared';
 import { requireManager } from '../middleware/requireManager.js';
+import { convertGpsToGaode } from '../services/gaode.js';
 
 interface OptimizeBody {
   start_lat: number;
@@ -38,6 +39,7 @@ export async function routeRoutes(app: FastifyInstance) {
       }
 
       const routeDate = date || new Date().toISOString().split('T')[0]!;
+      const normalizedStart = await convertGpsToGaode({ lat: start_lat, lng: start_lng });
 
       if (employee_id) {
         const isManager = request.employee.role === 'admin' ||
@@ -69,8 +71,8 @@ export async function routeRoutes(app: FastifyInstance) {
         companyId!,
         employeeId,
         routeDate,
-        start_lat,
-        start_lng,
+        normalizedStart.lat,
+        normalizedStart.lng,
         store_ids,
       );
 

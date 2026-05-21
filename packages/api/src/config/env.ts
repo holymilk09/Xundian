@@ -9,8 +9,10 @@ interface EnvConfig {
   HOST: string;
   CORS_ORIGINS: string[];
   GAODE_API_KEY?: string;
+  GAODE_WEB_SERVICE_KEY?: string;
+  GAODE_WEB_SERVICE_PRIVATE_KEY?: string;
   GAODE_JS_KEY?: string;
-  GAODE_SECURITY_SECRET?: string;
+  GAODE_JS_SECURITY_CODE?: string;
   DEMO_MODE: boolean;
 }
 
@@ -51,8 +53,10 @@ export function validateEnv(): EnvConfig {
     HOST: process.env.HOST || '0.0.0.0',
     CORS_ORIGINS: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001'],
     GAODE_API_KEY: process.env.GAODE_API_KEY,
+    GAODE_WEB_SERVICE_KEY: process.env.GAODE_WEB_SERVICE_KEY,
+    GAODE_WEB_SERVICE_PRIVATE_KEY: process.env.GAODE_WEB_SERVICE_PRIVATE_KEY,
     GAODE_JS_KEY: process.env.GAODE_JS_KEY,
-    GAODE_SECURITY_SECRET: process.env.GAODE_SECURITY_SECRET,
+    GAODE_JS_SECURITY_CODE: process.env.GAODE_JS_SECURITY_CODE,
     DEMO_MODE: process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true',
   };
 }

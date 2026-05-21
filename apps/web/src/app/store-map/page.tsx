@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import TierBadge from '@/components/TierBadge';
 import { STATUS_COLORS } from '@/lib/constants';
 import type { StoreTier } from '@xundian/shared';
+
+declare global {
+  interface Window {
+    AMap?: any;
+    _AMapSecurityConfig?: { securityJsCode: string };
+  }
+}
 
 interface MapStore {
   id: string;
@@ -33,6 +40,8 @@ function deriveStatus(store: MapStore): StoreStatus {
 }
 
 const statusColors = STATUS_COLORS as Record<StoreStatus, string>;
+const GAODE_JS_KEY = process.env.NEXT_PUBLIC_GAODE_JS_KEY;
+const GAODE_SECURITY_JS_CODE = process.env.NEXT_PUBLIC_GAODE_SECURITY_JS_CODE;
 
 // Chengdu bounds for SVG projection
 const LAT_MIN = 30.52;
@@ -66,14 +75,100 @@ export default function StoreMapPage() {
   const { data: stores, loading, error } = useApi<MapStore[]>('/stores/map');
   const [selectedStore, setSelectedStore] = useState<MapStore | null>(null);
   const [statusFilter, setStatusFilter] = useState<StoreStatus | 'all'>('all');
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const [mapError, setMapError] = useState('');
 
   const allStores = stores || [];
-  const filteredStores = statusFilter === 'all'
-    ? allStores
-    : allStores.filter((s) => deriveStatus(s) === statusFilter);
+  const filteredStores = useMemo(
+    () => statusFilter === 'all'
+      ? allStores
+      : allStores.filter((s) => deriveStatus(s) === statusFilter),
+    [allStores, statusFilter],
+  );
 
   const statusCounts: Record<StoreStatus, number> = { visited: 0, overdue: 0, pending: 0, discovered: 0 };
   allStores.forEach((s) => { statusCounts[deriveStatus(s)]++; });
+  const useGaodeMap = Boolean(GAODE_JS_KEY) && !mapError;
+
+  useEffect(() => {
+    if (!GAODE_JS_KEY || !mapRef.current || loading || error) return;
+
+    let cancelled = false;
+
+    const loadGaode = () => new Promise<void>((resolve, reject) => {
+      if (window.AMap) {
+        resolve();
+        return;
+      }
+
+      if (GAODE_SECURITY_JS_CODE) {
+        window._AMapSecurityConfig = { securityJsCode: GAODE_SECURITY_JS_CODE };
+      }
+
+      const existing = document.getElementById('gaode-js-sdk') as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Gaode JS SDK failed to load')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'gaode-js-sdk';
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(GAODE_JS_KEY)}`;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Gaode JS SDK failed to load'));
+      document.head.appendChild(script);
+    });
+
+    loadGaode()
+      .then(() => {
+        if (cancelled || !mapRef.current || !window.AMap) return;
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.destroy();
+          mapInstanceRef.current = null;
+        }
+
+        const center = filteredStores[0]
+          ? [filteredStores[0].longitude, filteredStores[0].latitude]
+          : [104.0668, 30.5728];
+
+        const map = new window.AMap.Map(mapRef.current, {
+          center,
+          zoom: filteredStores.length > 1 ? 12 : 13,
+          viewMode: '2D',
+        });
+
+        const markers = filteredStores.map((store) => {
+          const marker = new window.AMap.Marker({
+            position: [store.longitude, store.latitude],
+            title: lang === 'zh' ? store.name_zh || store.name : store.name,
+          });
+          marker.on('click', () => setSelectedStore(store));
+          return marker;
+        });
+
+        if (markers.length > 0) {
+          map.add(markers);
+          map.setFitView(markers, false, [40, 40, 40, 40]);
+        }
+
+        mapInstanceRef.current = map;
+      })
+      .catch((err) => {
+        if (!cancelled) setMapError(err instanceof Error ? err.message : 'Gaode map failed to load');
+      });
+
+    return () => {
+      cancelled = true;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.destroy();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [filteredStores, lang, loading, error]);
 
   return (
     <div className="max-w-6xl">
@@ -115,9 +210,12 @@ export default function StoreMapPage() {
               ))}
             </div>
 
-            {/* SVG Map */}
+            {/* Map */}
             <div className="glass-card p-4 overflow-hidden">
-              <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto" style={{ minHeight: 400 }}>
+              {useGaodeMap ? (
+                <div ref={mapRef} className="w-full rounded-lg overflow-hidden" style={{ minHeight: 480 }} />
+              ) : (
+                <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto" style={{ minHeight: 400 }}>
                 {/* Background */}
                 <rect width={SVG_W} height={SVG_H} fill="#0F172A" rx="8" />
 
@@ -173,7 +271,14 @@ export default function StoreMapPage() {
                     </g>
                   );
                 })}
-              </svg>
+                </svg>
+              )}
+
+              {mapError && (
+                <p className="text-warning text-xs mt-3">
+                  {mapError}
+                </p>
+              )}
 
               {/* Legend */}
               <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/[0.06]">

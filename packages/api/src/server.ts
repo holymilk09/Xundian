@@ -32,6 +32,8 @@ import { reportRoutes } from './routes/reports.js';
 import { exportRoutes } from './routes/export.js';
 import { promotionRoutes } from './routes/promotions.js';
 import { recordAuditEvent, shouldAuditRequest } from './services/audit.js';
+import { getGaodeReadiness } from './services/gaode.js';
+import { mapRoutes } from './routes/maps.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = validateEnv();
@@ -90,14 +92,7 @@ app.get('/health', async () => {
 });
 
 app.get('/health/maps', async () => {
-  return {
-    status: process.env.GAODE_API_KEY ? 'ready' : 'missing_key',
-    provider: 'gaode',
-    web_service_key_configured: Boolean(process.env.GAODE_API_KEY),
-    js_key_configured: Boolean(process.env.GAODE_JS_KEY),
-    security_secret_configured: Boolean(process.env.GAODE_SECURITY_SECRET),
-    demo_mode: process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true',
-  };
+  return getGaodeReadiness();
 });
 
 app.addHook('onResponse', async (request, reply) => {
@@ -147,6 +142,7 @@ await app.register(async function exportWithRateLimit(exportApp) {
   await exportApp.register(exportRoutes);
 }, { prefix: '/export' });
 await app.register(promotionRoutes, { prefix: '/promotions' });
+await app.register(mapRoutes, { prefix: '/maps' });
 
 // Start server
 try {
