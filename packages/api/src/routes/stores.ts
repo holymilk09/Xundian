@@ -367,7 +367,8 @@ export async function storeRoutes(app: FastifyInstance) {
                 s.address, s.tier, s.store_type, s.contact_name, s.contact_phone,
                 s.gaode_poi_id, s.discovered_by, s.approval_status, s.created_at, s.updated_at,
                 lv.checked_in_at as last_visit_at,
-                lv.stock_status as last_stock_status
+                lv.stock_status as last_stock_status,
+                lai.share_of_shelf_percent as latest_share_of_shelf_percent
          FROM stores s
          LEFT JOIN LATERAL (
            SELECT v.checked_in_at, v.stock_status
@@ -375,6 +376,14 @@ export async function storeRoutes(app: FastifyInstance) {
            WHERE v.store_id = s.id AND v.company_id = s.company_id
            ORDER BY v.checked_in_at DESC LIMIT 1
          ) lv ON true
+         LEFT JOIN LATERAL (
+           SELECT (vp.ai_analysis->>'share_of_shelf_percent')::numeric as share_of_shelf_percent
+           FROM visit_photos vp
+           JOIN visits v ON v.id = vp.visit_id
+           WHERE v.store_id = s.id AND v.company_id = s.company_id
+             AND vp.ai_analysis ? 'share_of_shelf_percent'
+           ORDER BY vp.created_at DESC LIMIT 1
+         ) lai ON true
          WHERE ${where}
          ORDER BY s.created_at DESC
          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,

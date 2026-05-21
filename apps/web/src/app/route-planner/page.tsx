@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '@/lib/hooks';
 import api from '@/lib/api';
@@ -27,8 +28,25 @@ const priorityConfig: Record<RoutePriority, { bg: string; text: string; labelKey
   high_value_nearby: { bg: 'bg-warning/15', text: 'text-warning', labelKey: 'highValueNearby' },
 };
 
-// Chengdu center fallback coordinates
-const CHENGDU_CENTER = { lat: 30.5728, lng: 104.0668 };
+function getBrowserPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS is required to generate a pilot route.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => reject(new Error('GPS is required to generate a pilot route.')),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  });
+}
 
 export default function RoutePlannerPage() {
   const { t, i18n } = useTranslation();
@@ -55,15 +73,16 @@ export default function RoutePlannerPage() {
   const handleGenerateRoute = useCallback(async () => {
     setGenerating(true);
     try {
+      const position = await getBrowserPosition();
       await api.post('/routes', {
-        start_lat: CHENGDU_CENTER.lat,
-        start_lng: CHENGDU_CENTER.lng,
+        start_lat: position.lat,
+        start_lng: position.lng,
         ...(isManager && selectedRepId ? { employee_id: selectedRepId } : {}),
       });
       refetchRoute();
       if (isManager) refetchTeam();
-    } catch {
-      alert(t('operationFailed'));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : t('operationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -139,8 +158,9 @@ export default function RoutePlannerPage() {
               {waypoints.map((wp, idx) => {
                 const prio = wp.priority ? priorityConfig[wp.priority] : null;
                 return (
-                  <div
+                  <Link
                     key={wp.store_id + idx}
+                    href={`/stores/${wp.store_id}`}
                     className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 transition-opacity ${
                       wp.visited ? 'opacity-50' : ''
                     }`}
@@ -182,7 +202,7 @@ export default function RoutePlannerPage() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -303,8 +323,9 @@ export default function RoutePlannerPage() {
               {((selectedRepRoute.waypoints || []) as RouteWaypoint[]).map((wp, idx) => {
                 const prio = wp.priority ? priorityConfig[wp.priority] : null;
                 return (
-                  <div
+                  <Link
                     key={wp.store_id + idx}
+                    href={`/stores/${wp.store_id}`}
                     className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 transition-opacity ${
                       wp.visited ? 'opacity-50' : ''
                     }`}
@@ -346,7 +367,7 @@ export default function RoutePlannerPage() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

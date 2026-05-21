@@ -15,6 +15,7 @@ import { GradientButton } from '../components/GradientButton';
 import { VisitTimeline } from '../components/VisitTimeline';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
 import { api } from '../services/api';
+import { useAuthStore } from '../stores/useAuthStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { StockStatus, StoreTier, StoreType } from '@xundian/shared';
 
@@ -44,6 +45,7 @@ export function StoreDetailScreen() {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<DetailRouteProp>();
   const { storeId } = route.params;
+  const role = useAuthStore((s) => s.employee?.role);
 
   const [showAI, setShowAI] = useState(false);
   const [store, setStore] = useState<StoreDetail | null>(null);
@@ -80,6 +82,7 @@ export function StoreDetailScreen() {
 
   const displayName =
     i18n.language === 'zh' && store?.name_zh ? store.name_zh : store?.name || storeId;
+  const canCheckIn = Boolean(store) && role === 'rep';
 
   return (
     <View style={styles.container}>
@@ -141,8 +144,20 @@ export function StoreDetailScreen() {
             title={t('checkIn')}
             onPress={() => navigation.navigate('CheckIn', { storeId })}
             colorFrom={Colors.success}
+            disabled={!canCheckIn}
             style={styles.actionButton}
           />
+          {!canCheckIn && !isLoading && (
+            <Text style={styles.actionHint}>
+              {role === 'rep'
+                ? i18n.language === 'en'
+                  ? 'Store must load before check-in.'
+                  : '门店加载成功后才能签到。'
+                : i18n.language === 'en'
+                  ? 'Manager accounts review stores from the dashboard.'
+                  : '管理员账号请在看板中审核门店。'}
+            </Text>
+          )}
         </View>
 
         {/* AI Analysis Toggle */}
@@ -279,13 +294,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actions: {
-    flexDirection: 'row',
     gap: 10,
     paddingHorizontal: Spacing.xxl,
     marginBottom: Spacing.lg,
   },
   actionButton: {
-    flex: 1,
+    width: '100%',
+  },
+  actionHint: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
   },
   aiToggle: {
     marginHorizontal: Spacing.xxl,

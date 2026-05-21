@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import KPICard from '@/components/KPICard';
 import TeamPerformanceCard from '@/components/TeamPerformanceCard';
@@ -107,12 +108,18 @@ export default function ManagerDashboard() {
               <span className="text-white text-[15px] font-bold">{t('auditMode')}</span>
             </div>
             <div className="flex gap-3">
-              <button className="flex-1 py-3 rounded-xl border border-warning/30 bg-warning/[0.08] text-warning text-sm font-semibold hover:bg-warning/[0.15] transition-colors">
+              <Link
+                href="/integrity"
+                className="flex-1 py-3 rounded-xl border border-warning/30 bg-warning/[0.08] text-warning text-sm font-semibold hover:bg-warning/[0.15] transition-colors text-center"
+              >
                 {t('randomCheck')}
-              </button>
-              <button className="flex-1 py-3 rounded-xl border border-primary/30 bg-primary/[0.08] text-primary text-sm font-semibold hover:bg-primary/[0.15] transition-colors">
+              </Link>
+              <Link
+                href="/integrity"
+                className="flex-1 py-3 rounded-xl border border-primary/30 bg-primary/[0.08] text-primary text-sm font-semibold hover:bg-primary/[0.15] transition-colors text-center"
+              >
                 {t('assignAudit')}
-              </button>
+              </Link>
             </div>
             <p className="text-muted text-[11px] mt-3 leading-relaxed">
               {t('auditDescription')}

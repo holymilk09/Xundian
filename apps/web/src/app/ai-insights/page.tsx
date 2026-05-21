@@ -44,7 +44,7 @@ export default function AIInsightsPage() {
       <div className="mb-6">
         <AIInsightsCard
           photosProcessed={String(analytics?.photos_processed ?? '--')}
-          alertsGenerated={String(analytics?.alerts_generated ?? '--')}
+          alertsGenerated={String(analytics?.alerts_from_ai ?? '--')}
           avgShareOfShelf={analytics?.avg_share_of_shelf != null ? `${Math.round(analytics.avg_share_of_shelf)}%` : '--'}
         />
       </div>

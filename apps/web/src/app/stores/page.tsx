@@ -48,7 +48,7 @@ export default function StoresPage() {
     status: item.last_stock_status || 'pending',
     lastVisit: formatLastVisit(item.last_visit_at),
     lastVisitAt: item.last_visit_at,
-    sos: 0,
+    sos: item.latest_share_of_shelf_percent ?? null,
   }));
 
   return (

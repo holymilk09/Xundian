@@ -1,11 +1,19 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getIntegrityFlags, resolveFlag, getIntegritySummary } from '../services/integrity.js';
 import { requireManager } from '../middleware/requireManager.js';
+import pool from '../db/pool.js';
 
 interface FlagsQuerystring {
   resolved?: string;
   flag_type?: string;
   employee_id?: string;
+  page?: string;
+  limit?: string;
+}
+
+interface AuditQuerystring {
+  employee_id?: string;
+  entity_type?: string;
   page?: string;
   limit?: string;
 }
@@ -17,6 +25,54 @@ export async function integrityRoutes(app: FastifyInstance) {
     const summary = await getIntegritySummary(request.companyId!);
     return reply.send({ success: true, data: summary });
   });
+
+  // GET /integrity/audit-events
+  app.get<{ Querystring: AuditQuerystring }>(
+    '/audit-events',
+    async (request: FastifyRequest<{ Querystring: AuditQuerystring }>, reply: FastifyReply) => {
+      if (!requireManager(request, reply)) return;
+
+      const page = Math.min(Math.max(parseInt(request.query.page || '1', 10) || 1, 1), 1000);
+      const limit = Math.min(100, Math.max(1, parseInt(request.query.limit || '20', 10)));
+      const offset = (page - 1) * limit;
+      const conditions = ['ae.company_id = $1'];
+      const params: unknown[] = [request.companyId];
+      let paramIndex = 2;
+
+      if (request.query.employee_id) {
+        conditions.push(`ae.employee_id = $${paramIndex}`);
+        params.push(request.query.employee_id);
+        paramIndex++;
+      }
+
+      if (request.query.entity_type) {
+        conditions.push(`ae.entity_type = $${paramIndex}`);
+        params.push(request.query.entity_type);
+        paramIndex++;
+      }
+
+      const where = conditions.join(' AND ');
+      const countResult = await pool.query(`SELECT COUNT(*) FROM audit_events ae WHERE ${where}`, params);
+      const total = parseInt(countResult.rows[0]!.count, 10);
+
+      params.push(limit, offset);
+      const result = await pool.query(
+        `SELECT ae.*, e.name as employee_name
+         FROM audit_events ae
+         LEFT JOIN employees e ON e.id = ae.employee_id
+         WHERE ${where}
+         ORDER BY ae.created_at DESC
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        params,
+      );
+
+      return reply.send({
+        success: true,
+        data: result.rows,
+        pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+      });
+    },
+  );
 
   // GET /integrity/flags
   app.get<{ Querystring: FlagsQuerystring }>(

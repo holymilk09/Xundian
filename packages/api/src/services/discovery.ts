@@ -17,8 +17,9 @@ export interface DiscoveredStore {
  * If GAODE_API_KEY is set: calls Gaode /v3/place/around API, filters out
  * stores already in the DB for this company.
  *
- * If not set: returns 5 mock stores near the given coordinates with
- * realistic Shanghai names.
+ * If not set and demo mode is enabled: returns 5 mock stores near the given
+ * coordinates. Pilot/build environments return an empty list instead of
+ * fabricating stores.
  */
 export async function discoverNearbyStores(
   companyId: string,
@@ -32,7 +33,12 @@ export async function discoverNearbyStores(
     return discoverViaGaode(companyId, lat, lng, radiusM, gaodeApiKey);
   }
 
-  return discoverMock(lat, lng);
+  const demoMode = process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true';
+  if (demoMode) {
+    return discoverMock(lat, lng);
+  }
+
+  return [];
 }
 
 async function discoverViaGaode(

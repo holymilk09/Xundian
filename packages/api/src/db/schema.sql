@@ -302,6 +302,26 @@ CREATE TABLE promotions (
 );
 
 -- ========================
+-- Audit Events
+-- ========================
+CREATE TABLE audit_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+  employee_id UUID REFERENCES employees(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  route TEXT NOT NULL,
+  method TEXT NOT NULL,
+  status_code INTEGER,
+  ip TEXT,
+  user_agent TEXT,
+  before JSONB,
+  after JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ========================
 -- Indexes
 -- ========================
 CREATE INDEX idx_stores_location ON stores USING GIST(location);
@@ -325,3 +345,6 @@ CREATE INDEX idx_monthly_goals_month ON monthly_goals(company_id, month);
 CREATE INDEX idx_promotions_company ON promotions(company_id);
 CREATE INDEX idx_promotions_active ON promotions(company_id, is_active, start_date, end_date);
 CREATE INDEX idx_shelf_comparisons_store ON shelf_comparisons(store_id);
+CREATE INDEX idx_audit_events_company_created ON audit_events(company_id, created_at DESC);
+CREATE INDEX idx_audit_events_employee_created ON audit_events(employee_id, created_at DESC);
+CREATE INDEX idx_audit_events_entity ON audit_events(entity_type, entity_id);

@@ -16,7 +16,7 @@ interface StoreRow {
   status: string;
   lastVisit: string | null;
   lastVisitAt?: string | null;
-  sos: number;
+  sos?: number | null;
 }
 
 interface StoreTableProps {
@@ -179,15 +179,19 @@ export default function StoreTable({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${store.sos > 25 ? 'bg-success' : 'bg-danger'}`}
-                          style={{ width: `${Math.min(store.sos, 100)}%` }}
-                        />
+                    {store.sos == null ? (
+                      <span className="text-slate-500 text-xs">--</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${store.sos > 25 ? 'bg-success' : 'bg-danger'}`}
+                            style={{ width: `${Math.min(store.sos, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-white text-xs font-medium">{store.sos}%</span>
                       </div>
-                      <span className="text-white text-xs font-medium">{store.sos}%</span>
-                    </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Link

@@ -31,6 +31,7 @@ import { integrityRoutes } from './routes/integrity.js';
 import { reportRoutes } from './routes/reports.js';
 import { exportRoutes } from './routes/export.js';
 import { promotionRoutes } from './routes/promotions.js';
+import { recordAuditEvent, shouldAuditRequest } from './services/audit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = validateEnv();
@@ -86,6 +87,26 @@ await app.register(tenantPlugin);
 // Health check
 app.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
+});
+
+app.get('/health/maps', async () => {
+  return {
+    status: process.env.GAODE_API_KEY ? 'ready' : 'missing_key',
+    provider: 'gaode',
+    web_service_key_configured: Boolean(process.env.GAODE_API_KEY),
+    js_key_configured: Boolean(process.env.GAODE_JS_KEY),
+    security_secret_configured: Boolean(process.env.GAODE_SECURITY_SECRET),
+    demo_mode: process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true',
+  };
+});
+
+app.addHook('onResponse', async (request, reply) => {
+  if (!shouldAuditRequest(request, reply.statusCode)) return;
+  try {
+    await recordAuditEvent(request, reply.statusCode);
+  } catch (err) {
+    request.log.error({ err }, 'Failed to record audit event');
+  }
 });
 
 // Register routes

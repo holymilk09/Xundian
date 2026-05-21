@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
-import { DEFAULT_ROUTE_START_LAT, DEFAULT_ROUTE_START_LNG } from '../utils/constants';
+import { getCurrentPosition } from '../services/location';
 import type { DailyRoute, RouteWaypoint } from '@xundian/shared';
 
 interface RouteState {
@@ -8,6 +8,7 @@ interface RouteState {
   waypoints: RouteWaypoint[];
   isNavigating: boolean;
   isLoading: boolean;
+  error: string | null;
 
   loadTodayRoute: () => Promise<void>;
   optimizeRoute: () => Promise<void>;
@@ -21,9 +22,10 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
   waypoints: [],
   isNavigating: false,
   isLoading: false,
+  error: null,
 
   loadTodayRoute: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const response = await api.get('/routes/today');
       const route: DailyRoute | null = response.data.data;
@@ -31,27 +33,33 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
         todayRoute: route,
         waypoints: route?.waypoints ?? [],
         isLoading: false,
+        error: null,
       });
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, error: 'Unable to load route.' });
     }
   },
 
   optimizeRoute: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
+      const position = await getCurrentPosition();
       const response = await api.post('/routes', {
-        start_lat: DEFAULT_ROUTE_START_LAT,
-        start_lng: DEFAULT_ROUTE_START_LNG,
+        start_lat: position.latitude,
+        start_lng: position.longitude,
       });
       const route: DailyRoute = response.data.data;
       set({
         todayRoute: route,
         waypoints: route.waypoints,
         isLoading: false,
+        error: null,
       });
-    } catch {
-      set({ isLoading: false });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Unable to optimize route.',
+      });
     }
   },
 

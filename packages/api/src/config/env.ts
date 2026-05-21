@@ -8,6 +8,10 @@ interface EnvConfig {
   PORT: number;
   HOST: string;
   CORS_ORIGINS: string[];
+  GAODE_API_KEY?: string;
+  GAODE_JS_KEY?: string;
+  GAODE_SECURITY_SECRET?: string;
+  DEMO_MODE: boolean;
 }
 
 export function validateEnv(): EnvConfig {
@@ -46,5 +50,9 @@ export function validateEnv(): EnvConfig {
     PORT: parseInt(process.env.PORT || '3000', 10),
     HOST: process.env.HOST || '0.0.0.0',
     CORS_ORIGINS: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001'],
+    GAODE_API_KEY: process.env.GAODE_API_KEY,
+    GAODE_JS_KEY: process.env.GAODE_JS_KEY,
+    GAODE_SECURITY_SECRET: process.env.GAODE_SECURITY_SECRET,
+    DEMO_MODE: process.env.DEMO_MODE === 'true' || process.env.ENABLE_DEMO_DATA === 'true',
   };
 }

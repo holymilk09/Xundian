@@ -13,6 +13,24 @@ const priorityColors: Record<string, string> = {
   low: '#6B7280',
 };
 
+function getBrowserPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS is required to generate a pilot route.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      }),
+      () => reject(new Error('GPS is required to generate a pilot route.')),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  });
+}
+
 function ActivePromosCard() {
   const { t } = useTranslation();
   const { data: promos } = useApi<any[]>('/promotions/active');
@@ -61,10 +79,11 @@ export default function RepDashboard() {
   const handleGenerateRoute = async () => {
     setGenerating(true);
     try {
-      await api.post('/routes', { start_lat: 30.57, start_lng: 104.07 });
+      const position = await getBrowserPosition();
+      await api.post('/routes', { start_lat: position.lat, start_lng: position.lng });
       await refetchRoute();
-    } catch {
-      alert(t('operationFailed'));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : t('operationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -192,7 +211,7 @@ export default function RepDashboard() {
           </div>
         </div>
         <p className="text-slate-400 text-xs">
-          {t('nearbyStoresCount', { count: 23, radius: searchRadius })}
+          {t('nearbyStoresCount', { count: 0, radius: searchRadius })}
         </p>
       </div>
 

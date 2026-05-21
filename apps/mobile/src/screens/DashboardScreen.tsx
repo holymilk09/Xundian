@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,24 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../stores/useAuthStore';
+import { api } from '../services/api';
 import { StatCard } from '../components/StatCard';
 import { StoreCard } from '../components/StoreCard';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
 import { DEFAULT_SEARCH_RADIUS_KM } from '../utils/constants';
+import type { StockStatus, Store } from '@xundian/shared';
+
+interface RepAnalytics {
+  visited_this_week: number;
+  pending: number;
+  overdue: number;
+}
+
+interface DashboardStore extends Store {
+  last_visit_at?: string | null;
+  last_stock_status?: StockStatus | null;
+}
 
 export function DashboardScreen() {
   const { t, i18n } = useTranslation();
@@ -23,10 +36,43 @@ export function DashboardScreen() {
   const setLanguage = useAuthStore((s) => s.setLanguage);
 
   const [searchRadius, setSearchRadius] = useState(DEFAULT_SEARCH_RADIUS_KM);
+  const [analytics, setAnalytics] = useState<RepAnalytics | null>(null);
+  const [stores, setStores] = useState<DashboardStore[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const toggleLang = () => {
     setLanguage(language === 'en' ? 'zh' : 'en');
   };
+
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    Promise.all([
+      api.get('/analytics/rep'),
+      api.get('/stores', { params: { limit: 3 } }),
+    ])
+      .then(([analyticsResponse, storesResponse]) => {
+        if (!mounted) return;
+        setAnalytics(analyticsResponse.data.data);
+        setStores(storesResponse.data.data || []);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setAnalytics(null);
+        setStores([]);
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const visited = analytics?.visited_this_week ?? 0;
+  const pending = analytics?.pending ?? 0;
+  const overdue = analytics?.overdue ?? 0;
 
   return (
     <View style={styles.container}>
@@ -54,10 +100,10 @@ export function DashboardScreen() {
       >
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          <StatCard label={t('visited')} value="8" color={Colors.success} />
-          <StatCard label={t('pending')} value="6" color={Colors.primary} />
-          <StatCard label={t('overdue')} value="2" color={Colors.danger} />
-          <StatCard label={t('discovered')} value="1" color={Colors.purple} />
+          <StatCard label={t('visited')} value={String(visited)} color={Colors.success} />
+          <StatCard label={t('pending')} value={String(pending)} color={Colors.primary} />
+          <StatCard label={t('overdue')} value={String(overdue)} color={Colors.danger} />
+          <StatCard label={t('stores')} value={String(stores.length)} color={Colors.purple} />
         </View>
 
         {/* Route Card */}
@@ -65,12 +111,11 @@ export function DashboardScreen() {
           <View style={styles.routeHeader}>
             <Text style={styles.routeTitle}>{t('todayRoute')}</Text>
             <Text style={styles.routeMeta}>
-              14 {t('stores')} {'\u00B7'} 12.4 {t('km')}
+              {pending + overdue} {t('stores')}
             </Text>
           </View>
           <GradientButton title={t('startRoute')} onPress={() => navigation.navigate('Route')} />
           <View style={styles.routeInfo}>
-            <Text style={styles.routeInfoText}>~3.5h</Text>
             <Text style={styles.routeInfoText}>{t('optimizeRoute')}</Text>
           </View>
         </View>
@@ -105,66 +150,36 @@ export function DashboardScreen() {
           </View>
           <Text style={styles.nearbyCount}>
             {i18n.language === 'en'
-              ? `Found 23 unvisited stores within ${searchRadius}km`
-              : `${searchRadius}公里内发现23家未巡检门店`}
+              ? `Search live stores within ${searchRadius}km`
+              : `搜索${searchRadius}公里内门店`}
           </Text>
         </View>
 
         {/* Revisit Reminders */}
         <Text style={styles.sectionTitle}>{t('revisitReminders')}</Text>
 
-        {/* Placeholder store list */}
-        <StoreCard
-          store={{
-            id: '1',
-            company_id: '',
-            name: 'Yonghui Supermarket',
-            name_zh: '永辉超市',
-            latitude: 31.2304,
-            longitude: 121.4737,
-            tier: 'A',
-            store_type: 'supermarket',
-            created_at: '',
-            updated_at: '',
-          }}
-          visitStatus="visited"
-          lastVisitDays={2}
-          onPress={() => navigation.navigate('StoreDetail', { storeId: '1' })}
-        />
-        <StoreCard
-          store={{
-            id: '2',
-            company_id: '',
-            name: 'FamilyMart #2891',
-            name_zh: '全家便利店#2891',
-            latitude: 31.2334,
-            longitude: 121.4697,
-            tier: 'B',
-            store_type: 'convenience',
-            created_at: '',
-            updated_at: '',
-          }}
-          visitStatus="pending"
-          lastVisitDays={8}
-          onPress={() => navigation.navigate('StoreDetail', { storeId: '2' })}
-        />
-        <StoreCard
-          store={{
-            id: '3',
-            company_id: '',
-            name: "Uncle Wang's Shop",
-            name_zh: '老王小卖部',
-            latitude: 31.2284,
-            longitude: 121.4777,
-            tier: 'C',
-            store_type: 'small_shop',
-            created_at: '',
-            updated_at: '',
-          }}
-          visitStatus="overdue"
-          lastVisitDays={25}
-          onPress={() => navigation.navigate('StoreDetail', { storeId: '3' })}
-        />
+        {isLoading && <Text style={styles.emptyText}>...</Text>}
+        {!isLoading && stores.length === 0 && (
+          <Text style={styles.emptyText}>
+            {i18n.language === 'en'
+              ? 'No pilot stores assigned yet.'
+              : '暂无分配的试点门店。'}
+          </Text>
+        )}
+        {stores.map((store) => {
+          const lastVisitDays = store.last_visit_at
+            ? Math.max(0, Math.floor((Date.now() - new Date(store.last_visit_at).getTime()) / 86400000))
+            : null;
+          return (
+            <StoreCard
+              key={store.id}
+              store={store}
+              visitStatus={store.last_stock_status ? 'visited' : 'pending'}
+              lastVisitDays={lastVisitDays}
+              onPress={() => navigation.navigate('StoreDetail', { storeId: store.id })}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -328,5 +343,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: Spacing.md,
+  },
+  emptyText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    paddingVertical: Spacing.lg,
   },
 });

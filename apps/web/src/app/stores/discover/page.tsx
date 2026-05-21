@@ -8,6 +8,7 @@ import api from '@/lib/api';
 // Chengdu fallback coordinates
 const CHENGDU_LAT = 30.5728;
 const CHENGDU_LNG = 104.0668;
+const DEMO_MODE = process.env.NEXT_PUBLIC_ENABLE_DEMO_DATA === 'true';
 
 // SVG projection helpers (same as store-map)
 const LAT_MIN = 30.52;
@@ -47,10 +48,13 @@ export default function DiscoverStorePage() {
     setErrorMsg('');
 
     if (!navigator.geolocation) {
-      // Fallback for dev: use Chengdu center
-      setLatitude(CHENGDU_LAT + (Math.random() - 0.5) * 0.02);
-      setLongitude(CHENGDU_LNG + (Math.random() - 0.5) * 0.02);
-      setGpsAccuracy(15);
+      if (DEMO_MODE) {
+        setLatitude(CHENGDU_LAT + (Math.random() - 0.5) * 0.02);
+        setLongitude(CHENGDU_LNG + (Math.random() - 0.5) * 0.02);
+        setGpsAccuracy(15);
+      } else {
+        setErrorMsg('GPS is required for pilot store discovery.');
+      }
       setGpsLoading(false);
       return;
     }
@@ -63,10 +67,13 @@ export default function DiscoverStorePage() {
         setGpsLoading(false);
       },
       () => {
-        // Fallback on error: use Chengdu coordinates with random offset
-        setLatitude(CHENGDU_LAT + (Math.random() - 0.5) * 0.02);
-        setLongitude(CHENGDU_LNG + (Math.random() - 0.5) * 0.02);
-        setGpsAccuracy(15);
+        if (DEMO_MODE) {
+          setLatitude(CHENGDU_LAT + (Math.random() - 0.5) * 0.02);
+          setLongitude(CHENGDU_LNG + (Math.random() - 0.5) * 0.02);
+          setGpsAccuracy(15);
+        } else {
+          setErrorMsg('GPS is required for pilot store discovery.');
+        }
         setGpsLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
@@ -129,6 +136,7 @@ export default function DiscoverStorePage() {
               <div className="text-muted text-xs mb-2">
                 {latitude.toFixed(6)}, {longitude.toFixed(6)}
                 {gpsAccuracy != null && ` (${gpsAccuracy.toFixed(0)}m)`}
+                {DEMO_MODE && ' · mock'}
               </div>
               <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full rounded-lg" style={{ maxHeight: 150, background: '#0F172A' }}>
                 <rect width={SVG_W} height={SVG_H} fill="#0F172A" />

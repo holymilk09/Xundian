@@ -16,6 +16,7 @@ export function RouteScreen() {
   const todayRoute = useRouteStore((s) => s.todayRoute);
   const waypoints = useRouteStore((s) => s.waypoints);
   const isLoading = useRouteStore((s) => s.isLoading);
+  const error = useRouteStore((s) => s.error);
   const loadTodayRoute = useRouteStore((s) => s.loadTodayRoute);
   const optimizeRoute = useRouteStore((s) => s.optimizeRoute);
 
@@ -51,7 +52,11 @@ export function RouteScreen() {
           style={styles.startButton}
         />
 
-        {!isLoading && waypoints.length === 0 && (
+        {error && (
+          <Text style={styles.emptyText}>{error}</Text>
+        )}
+
+        {!isLoading && !error && waypoints.length === 0 && (
           <Text style={styles.emptyText}>
             {i18n.language === 'en'
               ? 'No route generated yet.'

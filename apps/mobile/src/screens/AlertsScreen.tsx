@@ -1,83 +1,93 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
+import { api } from '../services/api';
 
 interface AlertItem {
   id: string;
-  type: 'oos' | 'overdue' | 'reminder';
-  title: string;
-  titleZh: string;
-  description: string;
-  descriptionZh: string;
-  severity: 'high' | 'medium' | 'low';
+  store_id: string;
+  store_name: string;
+  store_name_zh?: string;
+  next_visit_date: string;
+  priority: 'high' | 'normal' | 'low';
+  reason: string;
 }
-
-const MOCK_ALERTS: AlertItem[] = [
-  {
-    id: '1',
-    type: 'oos',
-    title: 'Out-of-Stock: Oyster Sauce at Yonghui',
-    titleZh: '缺货预警：永辉超市蚝油',
-    description: 'Predicted stockout in 3 days. Recommend priority revisit.',
-    descriptionZh: '预计3天内缺货。建议优先复访。',
-    severity: 'high',
-  },
-  {
-    id: '2',
-    type: 'overdue',
-    title: "Uncle Wang's Shop overdue by 4 days",
-    titleZh: '老王小卖部逾期4天',
-    description: 'Last visited 25 days ago. Tier C revisit window exceeded.',
-    descriptionZh: '上次巡检25天前。C级门店复访周期已超。',
-    severity: 'medium',
-  },
-  {
-    id: '3',
-    type: 'reminder',
-    title: 'FamilyMart #2891 due today',
-    titleZh: '全家便利店#2891今日到期',
-    description: 'Scheduled revisit for today. Tier B 14-day cycle.',
-    descriptionZh: '今日计划复访。B级门店14天周期。',
-    severity: 'low',
-  },
-];
 
 const SEVERITY_COLORS = {
   high: Colors.danger,
-  medium: Colors.warning,
+  normal: Colors.warning,
   low: Colors.primary,
 };
 
 export function AlertsScreen() {
   const { t, i18n } = useTranslation();
+  const navigation = useNavigation<any>();
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    setError('');
+    api.get('/alerts')
+      .then((response) => {
+        if (mounted) setAlerts(response.data.data || []);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setAlerts([]);
+        setError(err instanceof Error ? err.message : 'Unable to load alerts.');
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('alerts')}</Text>
         <Text style={styles.count}>
-          {MOCK_ALERTS.length} {i18n.language === 'en' ? 'active' : '条'}
+          {alerts.length} {i18n.language === 'en' ? 'active' : '条'}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {MOCK_ALERTS.map((alert) => {
-          const color = SEVERITY_COLORS[alert.severity];
+        {isLoading && <Text style={styles.emptyText}>...</Text>}
+        {error ? <Text style={styles.emptyText}>{error}</Text> : null}
+        {!isLoading && !error && alerts.length === 0 && (
+          <Text style={styles.emptyText}>
+            {i18n.language === 'en' ? 'No active alerts.' : '暂无待处理提醒。'}
+          </Text>
+        )}
+        {alerts.map((alert) => {
+          const color = SEVERITY_COLORS[alert.priority] || Colors.primary;
+          const storeName = i18n.language === 'zh' && alert.store_name_zh
+            ? alert.store_name_zh
+            : alert.store_name;
           return (
-            <View key={alert.id} style={styles.alertCard}>
+            <TouchableOpacity
+              key={alert.id}
+              style={styles.alertCard}
+              onPress={() => navigation.navigate('StoreDetail', { storeId: alert.store_id })}
+            >
               <View style={[styles.severityDot, { backgroundColor: color }]} />
               <View style={styles.alertContent}>
                 <Text style={styles.alertTitle}>
-                  {i18n.language === 'zh' ? alert.titleZh : alert.title}
+                  {storeName}
                 </Text>
                 <Text style={styles.alertDesc}>
-                  {i18n.language === 'zh'
-                    ? alert.descriptionZh
-                    : alert.description}
+                  {alert.reason} {'\u00B7'} {alert.next_visit_date}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
@@ -142,5 +152,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     lineHeight: 18,
+  },
+  emptyText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    paddingVertical: Spacing.lg,
   },
 });

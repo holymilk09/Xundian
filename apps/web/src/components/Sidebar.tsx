@@ -44,7 +44,9 @@ export default function Sidebar() {
   const user = getUser();
   const role = user?.role ?? 'rep';
 
-  const navItems = role === 'rep' ? repNav : managerNav;
+  const navItems = role === 'rep'
+    ? repNav
+    : managerNav.filter((item) => role === 'admin' || !['/employees', '/settings'].includes(item.href));
 
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === 'en' ? 'zh' : 'en');

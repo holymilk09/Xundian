@@ -54,6 +54,10 @@ services:
       RABBITMQ_URL: amqp://xundian:${RABBITMQ_PASSWORD:-xundian_dev}@rabbitmq:5672
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       GAODE_API_KEY: ${GAODE_API_KEY:-}
+      GAODE_JS_KEY: ${GAODE_JS_KEY:-}
+      GAODE_SECURITY_SECRET: ${GAODE_SECURITY_SECRET:-}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      ENABLE_DEMO_DATA: ${ENABLE_DEMO_DATA:-false}
       OSS_ENDPOINT: ${OSS_ENDPOINT:-}
       OSS_BUCKET: ${OSS_BUCKET:-}
       OSS_ACCESS_KEY: ${OSS_ACCESS_KEY:-}
@@ -74,6 +78,7 @@ services:
       - "3001:3001"
     environment:
       API_URL: http://api:3000
+      NEXT_PUBLIC_ENABLE_DEMO_DATA: ${NEXT_PUBLIC_ENABLE_DEMO_DATA:-false}
     depends_on:
       - api
 

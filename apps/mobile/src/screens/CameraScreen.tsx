@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { GradientButton } from '../components/GradientButton';
 import { Colors, FontSize, BorderRadius, Spacing } from '../theme';
-import { capturePhoto, uploadVisitPhoto } from '../services/camera';
+import { addWatermark, capturePhoto, uploadVisitPhoto } from '../services/camera';
+import { getCurrentPosition } from '../services/location';
+import { api } from '../services/api';
+import { useAuthStore } from '../stores/useAuthStore';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 
 type CameraRouteProp = RouteProp<RootStackParamList, 'Camera'>;
@@ -13,9 +16,11 @@ export function CameraScreen() {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute<CameraRouteProp>();
-  const { visitId } = route.params;
+  const { storeId, visitId } = route.params;
+  const employee = useAuthStore((s) => s.employee);
   const [photoTaken, setPhotoTaken] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [lastWatermark, setLastWatermark] = useState<string[]>([]);
 
   const handleCapture = async () => {
     if (!visitId) {
@@ -31,7 +36,30 @@ export function CameraScreen() {
     try {
       setIsUploading(true);
       const photo = await capturePhoto();
-      await uploadVisitPhoto(visitId, photo);
+      const [location, storeResponse] = await Promise.all([
+        getCurrentPosition(),
+        api.get(`/stores/${storeId}`),
+      ]);
+      const capturedAt = new Date();
+      const date = capturedAt.toISOString().slice(0, 10);
+      const time = capturedAt.toTimeString().slice(0, 5);
+      const storeName = storeResponse.data.data?.name || storeId;
+      const repName = employee?.name || '';
+      const watermarkedUri = await addWatermark(photo.uri, {
+        date,
+        time,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        storeName,
+        repName,
+      });
+      await uploadVisitPhoto(visitId, { ...photo, uri: watermarkedUri });
+      setLastWatermark([
+        `${date} ${time}`,
+        `GPS: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`,
+        `Store: ${storeName}`,
+        `Rep: ${repName || '--'}`,
+      ]);
       setPhotoTaken(true);
     } catch (error) {
       Alert.alert(
@@ -81,15 +109,15 @@ export function CameraScreen() {
         <Text style={styles.watermarkTitle}>
           {i18n.language === 'en' ? 'Watermark Preview' : '水印预览'}
         </Text>
-        <Text style={styles.watermarkLine}>
-          2026-02-09 14:23
-        </Text>
-        <Text style={styles.watermarkLine}>
-          GPS: 31.2304, 121.4737
-        </Text>
-        <Text style={styles.watermarkLine}>
-          {i18n.language === 'en' ? 'Store: Yonghui Supermarket' : '门店: 永辉超市'}
-        </Text>
+        {(lastWatermark.length > 0
+          ? lastWatermark
+          : [
+              i18n.language === 'en'
+                ? 'Captured photo metadata will appear here.'
+                : '拍摄后的照片元数据将在这里显示。',
+            ]).map((line) => (
+              <Text key={line} style={styles.watermarkLine}>{line}</Text>
+            ))}
       </View>
 
       {/* Capture Button */}
